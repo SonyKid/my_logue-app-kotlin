@@ -1,9 +1,12 @@
 package com.spencehouse.logue.ui
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
@@ -19,6 +22,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.spencehouse.logue.ui.model.DashboardViewModel
+import kotlin.math.min
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -206,6 +210,7 @@ fun DashboardScreen(
     }
 }
 
+@SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 fun VehicleStatusCard(
     percentage: Int,
@@ -229,7 +234,7 @@ fun VehicleStatusCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -264,11 +269,42 @@ fun VehicleStatusCard(
 
             if(isEv) {
                 Spacer(modifier = Modifier.height(16.dp))
-                LinearProgressIndicator(
-                    progress = { percentage / 100f },
+                BoxWithConstraints(
                     modifier = Modifier.fillMaxWidth(),
-                    color = batteryColor,
-                )
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    LinearProgressIndicator(
+                        progress = { percentage / 100f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(12.dp),
+                        color = batteryColor,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainer,
+                    )
+                    val markerOffset = (maxWidth.value * (targetLimit / 100f))
+                    val coercedMarkerOffset = min(markerOffset, maxWidth.value - 24.dp.value)
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .offset(x = coercedMarkerOffset.dp)
+                            .border(
+                                2.dp,
+                                MaterialTheme.colorScheme.onSurface,
+                                CircleShape
+                            )
+                    ) {
+                        Icon(
+                            Icons.Default.Bolt,
+                            contentDescription = "Charge Target",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .padding(2.dp)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -327,11 +363,11 @@ fun RemoteCommands(
 
 @Composable
 fun CommandButton(text: String, icon: ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    OutlinedButton(
+    FilledTonalButton(
         onClick = onClick,
         modifier = modifier.height(56.dp),
         shape = MaterialTheme.shapes.medium,
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
+        colors = ButtonDefaults.filledTonalButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(icon, contentDescription = null)
