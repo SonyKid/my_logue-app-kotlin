@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
@@ -15,9 +17,12 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -248,15 +253,31 @@ fun VehicleStatusCard(
                     modifier = Modifier.size(32.dp)
                 )
                 Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    if(isEv) {
-                        Text("Battery", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            text = "$percentage% · ${if (useMetric) "${(range * 1.609).toInt()} km" else "$range miles"} range",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
+                if (isEv) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column {
+                            Text("Battery", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = "$percentage% · ${if (useMetric) "${(range * 1.609).toInt()} km" else "$range miles"} range",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("Odometer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                if (useMetric) "${(odometer * 1.609).toInt()} km" else "$odometer miles",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else {
+                    Column {
                         Text("Odometer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text(
                             if (useMetric) "${(odometer * 1.609).toInt()} km" else "$odometer miles",
@@ -472,16 +493,26 @@ fun TirePressureSection(pressures: Map<String, Double?>, useMetric: Boolean) {
 @Composable
 fun PinDialog(title: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var pin by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, style = MaterialTheme.typography.headlineSmall) },
         text = {
             OutlinedTextField(
                 value = pin,
-                onValueChange = { if (it.length <= 4) pin = it },
+                onValueChange = {
+                    if (it.length <= 4 && it.all { char -> char.isDigit() }) {
+                        pin = it
+                    }
+                },
                 label = { Text("Enter PIN") },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
                 visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                keyboardActions = KeyboardActions(onDone = { onConfirm(pin) }),
                 singleLine = true
             )
         },
@@ -492,6 +523,10 @@ fun PinDialog(title: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit)
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
 }
 
 @Composable
@@ -545,16 +580,18 @@ fun SettingsDialog(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
                 
                 Text("Logue App", style = MaterialTheme.typography.titleMedium)
-                Text("Version 1.0.0", style = MaterialTheme.typography.bodySmall)
+                Text("Version 0.4.0", style = MaterialTheme.typography.bodySmall)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Logue is an open-source alternative client for Honda and Acura connected vehicles.")
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Please note that some commands and statuses may take up to 30 seconds to update, as the vehicle checks for new commands periodically.", style = MaterialTheme.typography.bodySmall)
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = "Developed by mcspencehouse",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable { 
-                        uriHandler.openUri("https://github.com/mcspencehouse")
+                        uriHandler.openUri("https://github.com/mcspencehouse/logue-app-kotlin")
                     }
                 )
 
