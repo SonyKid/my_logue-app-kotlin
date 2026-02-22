@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">logue</string>
+    <string name="battery_widget_description">Displays the current battery percentage and range of your vehicle.</string>
+</resources>
