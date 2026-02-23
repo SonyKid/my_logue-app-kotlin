@@ -135,7 +135,7 @@ fun DashboardScreen(
                         odometer = uiState.odometer ?: 0,
                         targetLimit = uiState.targetChargeLevel,
                         isEv = uiState.isEv,
-                        useMetric = uiState.useMetric,
+                        useKilometers = uiState.useKilometers,
                         chargeStatus = uiState.chargeStatus,
                         chargeVoltage = uiState.chargeVoltage,
                         isPluggedIn = uiState.isPluggedIn,
@@ -157,9 +157,9 @@ fun DashboardScreen(
                 item {
                     ClimateControl(
                         status = uiState.climateStatus,
-                        useMetric = uiState.useMetric,
-                        onStart = { temp ->
-                            showPinDialog = "Start Climate" to { pin -> viewModel.startClimate(pin, temp) }
+                        useCelsius = uiState.useCelsius,
+                        onStart = {
+                            showPinDialog = "Start Climate" to { pin -> viewModel.startClimate(pin) }
                         },
                         onStop = {
                             showPinDialog = "Stop Climate" to { pin -> viewModel.stopClimate(pin) }
@@ -169,7 +169,7 @@ fun DashboardScreen(
 
                 // Tire Pressure
                 item {
-                    TirePressureSection(uiState.tirePressures, uiState.useMetric)
+                    TirePressureSection(uiState.tirePressures, uiState.useKpa)
                 }
 
                 item {
@@ -204,8 +204,12 @@ fun DashboardScreen(
 
     if (showSettingsDialog) {
         SettingsDialog(
-            useMetric = uiState.useMetric,
-            onUseMetricChange = { viewModel.toggleUnits() },
+            useCelsius = uiState.useCelsius,
+            useKilometers = uiState.useKilometers,
+            useKpa = uiState.useKpa,
+            onUseCelsiusChange = { viewModel.toggleCelsius(it) },
+            onUseKilometersChange = { viewModel.toggleKilometers(it) },
+            onUseKpaChange = { viewModel.toggleKpa(it) },
             onLogout = {
                 viewModel.logout()
                 onLogout()
@@ -223,7 +227,7 @@ fun VehicleStatusCard(
     odometer: Int,
     targetLimit: Int,
     isEv: Boolean,
-    useMetric: Boolean,
+    useKilometers: Boolean,
     chargeStatus: String,
     chargeVoltage: String?,
     isPluggedIn: Boolean,
@@ -262,7 +266,7 @@ fun VehicleStatusCard(
                         Column {
                             Text("Battery", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                             Text(
-                                text = "$percentage% · ${if (useMetric) "${(range * 1.609).toInt()} km" else "$range miles"} range",
+                                text = "$percentage% · ${if (useKilometers) "${(range * 1.609).toInt()} km" else "$range miles"} range",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -270,7 +274,7 @@ fun VehicleStatusCard(
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Odometer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                             Text(
-                                if (useMetric) "${(odometer * 1.609).toInt()} km" else "$odometer miles",
+                                if (useKilometers) "${(odometer * 1.609).toInt()} km" else "$odometer miles",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -280,7 +284,7 @@ fun VehicleStatusCard(
                     Column {
                         Text("Odometer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text(
-                            if (useMetric) "${(odometer * 1.609).toInt()} km" else "$odometer miles",
+                            if (useKilometers) "${(odometer * 1.609).toInt()} km" else "$odometer miles",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -399,8 +403,8 @@ fun CommandButton(text: String, icon: ImageVector, modifier: Modifier = Modifier
 }
 
 @Composable
-fun ClimateControl(status: String, useMetric: Boolean, onStart: (Int) -> Unit, onStop: () -> Unit) {
-    var temp by remember { mutableIntStateOf(if (useMetric) 22 else 72) }
+fun ClimateControl(status: String, useCelsius: Boolean, onStart: () -> Unit, onStop: () -> Unit) {
+    var temp by remember(useCelsius) { mutableIntStateOf(if (useCelsius) 22 else 72) }
     val isOn = status != "OFF"
 
     Card(
@@ -423,14 +427,14 @@ fun ClimateControl(status: String, useMetric: Boolean, onStart: (Int) -> Unit, o
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { temp-- }) { Icon(Icons.Default.Remove, contentDescription = "Decrease temperature") }
-                Text("$temp${if (useMetric) "°C" else "°F"}", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+                Text("$temp${if (useCelsius) "°C" else "°F"}", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
                 IconButton(onClick = { temp++ }) { Icon(Icons.Default.Add, contentDescription = "Increase temperature") }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = { if (isOn) onStop() else onStart(temp) },
+                onClick = { if (isOn) onStop() else onStart() },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isOn) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
@@ -445,7 +449,7 @@ fun ClimateControl(status: String, useMetric: Boolean, onStart: (Int) -> Unit, o
 }
 
 @Composable
-fun TirePressureSection(pressures: Map<String, Double?>, useMetric: Boolean) {
+fun TirePressureSection(pressures: Map<String, Double?>, useKpa: Boolean) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
@@ -477,7 +481,7 @@ fun TirePressureSection(pressures: Map<String, Double?>, useMetric: Boolean) {
                                     Text(labels[pos] ?: "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     Spacer(modifier = Modifier.height(4.dp))
                                     val displayPressure = if (pressure != null) {
-                                        if (useMetric) "${pressure.toInt()} kPa" else "${(pressure * 0.145038).toInt()} PSI"
+                                        if (useKpa) "${pressure.toInt()} kPa" else "${(pressure * 0.145038).toInt()} PSI"
                                     } else "--"
                                     Text(displayPressure, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
                                  }
@@ -557,8 +561,12 @@ fun ChargeLimitDialog(currentLimit: Int, onDismiss: () -> Unit, onConfirm: (Int)
 
 @Composable
 fun SettingsDialog(
-    useMetric: Boolean,
-    onUseMetricChange: () -> Unit,
+    useCelsius: Boolean,
+    useKilometers: Boolean,
+    useKpa: Boolean,
+    onUseCelsiusChange: (Boolean) -> Unit,
+    onUseKilometersChange: (Boolean) -> Unit,
+    onUseKpaChange: (Boolean) -> Unit,
     onLogout: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -573,8 +581,24 @@ fun SettingsDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Use Metric Units")
-                    Switch(checked = useMetric, onCheckedChange = { onUseMetricChange() })
+                    Text("Use Celsius")
+                    Switch(checked = useCelsius, onCheckedChange = onUseCelsiusChange)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Use Kilometers")
+                    Switch(checked = useKilometers, onCheckedChange = onUseKilometersChange)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Use kPa for Tire Pressure")
+                    Switch(checked = useKpa, onCheckedChange = onUseKpaChange)
                 }
                 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))

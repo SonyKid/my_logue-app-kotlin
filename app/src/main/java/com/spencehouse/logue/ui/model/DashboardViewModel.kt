@@ -47,7 +47,9 @@ class DashboardViewModel @Inject constructor(
                 vehicles = authService.vehicles,
                 selectedVin = authService.selectedVin,
                 isEv = isEv,
-                useMetric = authService.sessionManager.useMetric
+                useCelsius = authService.sessionManager.useCelsius,
+                useKilometers = authService.sessionManager.useKilometers,
+                useKpa = authService.sessionManager.useKpa
             )
             
             if (isEv) {
@@ -249,10 +251,19 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun toggleUnits() {
-        val newUseMetric = !uiState.useMetric
-        authService.sessionManager.useMetric = newUseMetric
-        uiState = uiState.copy(useMetric = newUseMetric)
+    fun toggleCelsius(value: Boolean) {
+        authService.sessionManager.useCelsius = value
+        uiState = uiState.copy(useCelsius = value)
+    }
+
+    fun toggleKilometers(value: Boolean) {
+        authService.sessionManager.useKilometers = value
+        uiState = uiState.copy(useKilometers = value)
+    }
+
+    fun toggleKpa(value: Boolean) {
+        authService.sessionManager.useKpa = value
+        uiState = uiState.copy(useKpa = value)
     }
 
     private fun updateStatus(text: String) {
@@ -334,8 +345,9 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun startClimate(pin: String, temp: Int) = sendCommand("Start Climate", { p -> 
-        vehicleService.startClimate(authService.selectedVin!!, p, temp) 
+    fun startClimate(pin: String) = sendCommand("Start Climate", { p ->
+        val temp = if (uiState.useCelsius) 22 else 72
+        vehicleService.startClimate(authService.selectedVin!!, p, temp)
     }, pin, "ON")
 
     fun stopClimate(pin: String) = sendCommand("Stop Climate", { p -> 
