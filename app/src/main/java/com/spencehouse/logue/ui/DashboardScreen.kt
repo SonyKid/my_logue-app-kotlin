@@ -24,12 +24,13 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.spencehouse.logue.ui.model.DashboardViewModel
 import kotlin.math.min
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DashboardScreen(
     onLogout: () -> Unit,
@@ -220,6 +221,7 @@ fun DashboardScreen(
 }
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun VehicleStatusCard(
     percentage: Int,
@@ -258,10 +260,10 @@ fun VehicleStatusCard(
                 )
                 Spacer(modifier = Modifier.width(16.dp))
                 if (isEv) {
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalArrangement = Arrangement.Center,
                     ) {
                         Column {
                             Text("Battery", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -390,14 +392,23 @@ fun RemoteCommands(
 fun CommandButton(text: String, icon: ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
     FilledTonalButton(
         onClick = onClick,
-        modifier = modifier.height(56.dp),
+        modifier = modifier.defaultMinSize(minHeight = 56.dp),
         shape = MaterialTheme.shapes.medium,
         colors = ButtonDefaults.filledTonalButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(vertical = 4.dp)
+        ) {
             Icon(icon, contentDescription = null)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text, style = MaterialTheme.typography.labelSmall)
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.Center,
+                maxLines = 2
+            )
         }
     }
 }
