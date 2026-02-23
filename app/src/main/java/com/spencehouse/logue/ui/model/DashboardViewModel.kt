@@ -144,12 +144,13 @@ class DashboardViewModel @Inject constructor(
         val rangeVal = evStatus?.optInt("evRange")
         val chargeStatus = evStatus?.optString("chargeStatus")
         val plugStatus = evStatus?.optString("plugStatus")
+        val chargeModeValue = evStatus?.optString("chargeMode")
         
         val targetLevel = chargeMode?.optJSONObject("generalAwayTargetChargeLevel")?.optInt("value") ?: 80
 
         val isPluggedIn = plugStatus?.lowercase() == "plugged" || chargeStatus?.lowercase() == "charging" || chargeStatus?.lowercase() == "complete"
 
-        val (mainStatus, voltage) = formatChargeStatus(chargeStatus, plugStatus, rb)
+        val (mainStatus, voltage) = formatChargeStatus(chargeStatus, plugStatus, chargeModeValue)
 
         uiState = uiState.copy(
             batteryPercentage = battery,
@@ -165,10 +166,10 @@ class DashboardViewModel @Inject constructor(
         )
     }
 
-    private fun formatChargeStatus(chargeStatus: String?, plugStatus: String?, rb: JSONObject): Pair<String, String?> {
+    private fun formatChargeStatus(chargeStatus: String?, plugStatus: String?, chargeMode: String?): Pair<String, String?> {
         val status = chargeStatus?.lowercase()
         val pStatus = plugStatus?.lowercase()
-        
+
         if (pStatus != "plugged") {
             return "Unplugged" to null
         }
@@ -178,10 +179,10 @@ class DashboardViewModel @Inject constructor(
             "charging" -> mainStatus = "Charging"
             "complete" -> mainStatus = "Complete"
         }
-        
-        val powerLevel = rb.optJSONObject("chargerPowerLevel")?.optString("value")
-        val voltage = if (!powerLevel.isNullOrEmpty() && powerLevel != "0") {
-            "${powerLevel}V"
+
+        val isNumeric = chargeMode?.toIntOrNull() != null
+        val voltage = if (chargeMode != null && isNumeric) {
+            "${chargeMode}V"
         } else {
             null
         }
