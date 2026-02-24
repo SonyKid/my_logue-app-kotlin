@@ -81,7 +81,9 @@ class DashboardViewModel @Inject constructor(
                 val creds = credsResult.getOrElse {
                     Log.e(tag, "Failed to get CIG token", it)
                     val errorMsg = it.message ?: ""
-                    if (errorMsg.contains("scope is invalid")) {
+                    if (errorMsg.contains("Unable to resolve host")) {
+                        updateStatus("Network Error. Check connection.")
+                    } else if (errorMsg.contains("scope is invalid")) {
                         updateStatus("Not an EV")
                     } else {
                         updateStatus("Auth Error: $errorMsg")
@@ -221,7 +223,9 @@ class DashboardViewModel @Inject constructor(
                 result.onFailure {
                     Log.e(tag, "Manual dashboard request failed", it)
                     val errorMsg = it.message ?: ""
-                    if (errorMsg.contains("scope is invalid")) {
+                    if (errorMsg.contains("Unable to resolve host")) {
+                        updateStatus("Network Error. Check connection.")
+                    } else if (errorMsg.contains("scope is invalid")) {
                         updateStatus("Not an EV")
                         uiState = uiState.copy(isEv = false)
                     } else {
@@ -239,6 +243,10 @@ class DashboardViewModel @Inject constructor(
                 uiState = uiState.copy(climateStatus = status.uppercase())
             }.onFailure {
                 Log.e(tag, "Climate status request failed", it)
+                val errorMsg = it.message ?: ""
+                if (errorMsg.contains("Unable to resolve host")) {
+                    updateStatus("Network Error. Check connection.")
+                }
             }
 
             isRefreshing = false
