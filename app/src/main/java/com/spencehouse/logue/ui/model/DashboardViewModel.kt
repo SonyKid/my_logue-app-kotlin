@@ -11,6 +11,8 @@ import com.spencehouse.logue.service.VehicleService
 import com.spencehouse.logue.service.mqtt.AwsMqttClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.*
@@ -22,25 +24,25 @@ class DashboardViewModel @Inject constructor(
     private val vehicleService: VehicleService
 ) : ViewModel() {
 
-    private val TAG = "DashboardViewModel"
+    private val tag = "DashboardViewModel"
     var uiState by mutableStateOf(DashboardUiState())
         private set
 
     private var mqttClient: AwsMqttClient? = null
     private var refreshJob: Job? = null
-    
+
     var isRefreshing by mutableStateOf(false)
         private set
 
     init {
-        Log.d(TAG, "Initializing DashboardViewModel")
-        
+        Log.d(tag, "Initializing DashboardViewModel")
+
         viewModelScope.launch {
             if (authService.vehicles.isEmpty()) {
-                Log.d(TAG, "Vehicles empty, attempting silent login")
+                Log.d(tag, "Vehicles empty, attempting silent login")
                 authService.login()
             }
-            
+
             val isEv = checkIfEv(authService.getVehicleName())
             uiState = uiState.copy(
                 vehicleName = authService.getVehicleName(),
@@ -52,12 +54,11 @@ class DashboardViewModel @Inject constructor(
                 useKpa = authService.sessionManager.useKpa,
                 savedPin = authService.sessionManager.pin
             )
-            
+
             if (isEv) {
                 connectMqtt()
             } else {
                 updateStatus("Not an EV")
-                refreshData() // Still get climate for non-EVs
             }
         }
         startAutoRefresh()
@@ -71,14 +72,14 @@ class DashboardViewModel @Inject constructor(
     private fun connectMqtt() {
         val vin = authService.selectedVin
         if (vin == null || !uiState.isEv) return
-        
+
         viewModelScope.launch {
             try {
-                Log.d(TAG, "Connecting MQTT for VIN: $vin")
+                Log.d(tag, "Connecting MQTT for VIN: $vin")
                 updateStatus("Authenticating MQTT...")
                 val credsResult = vehicleService.getCigToken(vin)
                 val creds = credsResult.getOrElse {
-                    Log.e(TAG, "Failed to get CIG token", it)
+                    Log.e(tag, "Failed to get CIG token", it)
                     val errorMsg = it.message ?: ""
                     if (errorMsg.contains("scope is invalid")) {
                         updateStatus("Not an EV")
@@ -87,31 +88,31 @@ class DashboardViewModel @Inject constructor(
                     }
                     return@launch
                 }
-                
-                Log.d(TAG, "CIG Token received, initializing AwsMqttClient")
+
+                Log.d(tag, "CIG Token received, initializing AwsMqttClient")
                 updateStatus("Connecting to AWS IoT...")
                 mqttClient?.disconnect()
                 mqttClient = AwsMqttClient(
                     vin = vin,
                     cigToken = creds.token,
                     cigSignature = creds.tokenSignature,
-                    onMessageCallback = { topic, payload -> 
-                        Log.d(TAG, "MQTT Message received on $topic")
-                        onMqttMessage(topic, payload) 
+                    onMessageCallback = { topic, payload ->
+                        Log.d(tag, "MQTT Message received on $topic")
+                        onMqttMessage(topic, payload)
                     },
                     onConnected = {
-                        Log.i(TAG, "MQTT Connected successfully")
+                        Log.i(tag, "MQTT Connected successfully")
                         updateStatus("Connected")
                         refreshData()
                     },
                     onError = { error ->
-                        Log.e(TAG, "MQTT Client Error: $error")
+                        Log.e(tag, "MQTT Client Error: $error")
                         updateStatus("Connection Error: $error")
                     }
                 )
                 mqttClient?.connect()
             } catch (e: Exception) {
-                Log.e(TAG, "connectMqtt exception", e)
+                Log.e(tag, "connectMqtt exception", e)
                 updateStatus("Connection Error: ${e.message}")
             }
         }
@@ -120,22 +121,22 @@ class DashboardViewModel @Inject constructor(
     private fun onMqttMessage(topic: String, payload: String) {
         try {
             val json = JSONObject(payload)
-            Log.v(TAG, "Processing MQTT payload: $payload")
+            Log.v(tag, "Processing MQTT payload: $payload")
             if (topic.contains("DASHBOARD_ASYNC")) {
                 updateDashboardUi(json)
             } else if (topic.contains("ENGINE_START_STOP_ASYNC")) {
-                Log.d(TAG, "Engine start/stop update received")
+                Log.d(tag, "Engine start/stop update received")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error parsing MQTT message", e)
+            Log.e(tag, "Error parsing MQTT message", e)
         }
     }
 
     private fun updateDashboardUi(data: JSONObject) {
         val reported = data.optJSONObject("state")?.optJSONObject("reported") ?: return
         val rb = reported.optJSONObject("responseBody") ?: return
-        
-        Log.d(TAG, "Updating UI with reported dashboard data")
+
+        Log.d(tag, "Updating UI with reported dashboard data")
         val evStatus = rb.optJSONObject("evStatus")
         val odometerData = rb.optJSONObject("odometer")
         val tireStatus = rb.optJSONObject("tireStatus")
@@ -146,7 +147,7 @@ class DashboardViewModel @Inject constructor(
         val chargeStatus = evStatus?.optString("chargeStatus")
         val plugStatus = evStatus?.optString("plugStatus")
         val chargeModeValue = evStatus?.optString("chargeMode")
-        
+
         val targetLevel = chargeMode?.optJSONObject("generalAwayTargetChargeLevel")?.optInt("value") ?: 80
 
         val isPluggedIn = plugStatus?.lowercase() == "plugged" || chargeStatus?.lowercase() == "charging" || chargeStatus?.lowercase() == "complete"
@@ -202,21 +203,23 @@ class DashboardViewModel @Inject constructor(
 
     fun refreshData(): Job {
         val vin = authService.selectedVin ?: return viewModelScope.launch {}
-        
+
+        if (!uiState.isEv) return viewModelScope.launch {}
+
         return viewModelScope.launch {
             isRefreshing = true
-            Log.d(TAG, "Refreshing data and checking connection for VIN: $vin")
-            
+            Log.d(tag, "Refreshing data and checking connection for VIN: $vin")
+
             if (uiState.isEv) {
                 // Reconnect if status indicates an error or disconnect
                 if (uiState.statusText.contains("Error") || uiState.statusText.contains("lost")) {
                     connectMqtt()
                 }
-                
+
                 updateStatus("Requesting update...")
                 val result = vehicleService.requestDashboard(vin)
                 result.onFailure {
-                    Log.e(TAG, "Manual dashboard request failed", it)
+                    Log.e(tag, "Manual dashboard request failed", it)
                     val errorMsg = it.message ?: ""
                     if (errorMsg.contains("scope is invalid")) {
                         updateStatus("Not an EV")
@@ -228,16 +231,16 @@ class DashboardViewModel @Inject constructor(
             } else {
                 updateStatus("Not an EV")
             }
-            
+
             val climateResult = vehicleService.getClimateStatus(vin)
             climateResult.onSuccess {
-                val status = it["climateStatus"] as? String ?: "OFF"
-                Log.d(TAG, "Climate status received: $status")
+                val status = it.jsonObject["climateStatus"]?.jsonPrimitive?.content ?: "OFF"
+                Log.d(tag, "Climate status received: $status")
                 uiState = uiState.copy(climateStatus = status.uppercase())
             }.onFailure {
-                Log.e(TAG, "Climate status request failed", it)
+                Log.e(tag, "Climate status request failed", it)
             }
-            
+
             isRefreshing = false
         }
     }
@@ -247,7 +250,7 @@ class DashboardViewModel @Inject constructor(
         refreshJob = viewModelScope.launch {
             while (isActive) {
                 delay(60000)
-                Log.d(TAG, "Auto-refreshing data")
+                Log.d(tag, "Auto-refreshing data")
                 refreshData()
             }
         }
@@ -274,13 +277,13 @@ class DashboardViewModel @Inject constructor(
 
     fun onVehicleChange(vin: String) {
         if (vin == authService.selectedVin) return
-        
-        Log.i(TAG, "Changing vehicle to VIN: $vin")
+
+        Log.i(tag, "Changing vehicle to VIN: $vin")
         mqttClient?.disconnect()
-        
+
         // This was the missing link - update persistent storage!
         authService.updateSelectedVin(vin)
-        
+
         val isEv = checkIfEv(authService.getVehicleName())
         uiState = uiState.copy(
             selectedVin = vin,
@@ -290,16 +293,14 @@ class DashboardViewModel @Inject constructor(
             range = null,
             statusText = if (isEv) "Switching vehicles..." else "Not an EV"
         )
-        
+
         if (isEv) {
             connectMqtt()
-        } else {
-            refreshData()
         }
     }
 
     fun logout() {
-        Log.i(TAG, "User logged out from Dashboard")
+        Log.i(tag, "User logged out from Dashboard")
         mqttClient?.disconnect()
         authService.logout()
     }
@@ -307,9 +308,9 @@ class DashboardViewModel @Inject constructor(
     fun setTargetChargeLevel(level: Int) {
         val vin = authService.selectedVin ?: return
         if (!uiState.isEv) return
-        
+
         viewModelScope.launch {
-            Log.d(TAG, "Setting target charge level to $level%")
+            Log.d(tag, "Setting target charge level to $level%")
             vehicleService.setTargetChargeLevel(vin, level)
             refreshData()
         }
@@ -322,17 +323,17 @@ class DashboardViewModel @Inject constructor(
 
     fun sendCommand(name: String, action: suspend (String) -> Result<String?>, pin: String, targetStatus: String? = null) {
         viewModelScope.launch {
-            Log.i(TAG, "Sending command: $name")
+            Log.i(tag, "Sending command: $name")
             updateStatus("Sending $name command...")
             val result = action(pin)
             result.onSuccess {
-                Log.i(TAG, "Command $name sent successfully")
+                Log.i(tag, "Command $name sent successfully")
                 updateStatus("$name command sent!")
                 if (targetStatus != null) {
                     startAggressivePolling(targetStatus)
                 }
             }.onFailure {
-                Log.e(TAG, "Command $name failed", it)
+                Log.e(tag, "Command $name failed", it)
                 updateStatus("$name failed: ${it.message}")
             }
         }
@@ -340,10 +341,10 @@ class DashboardViewModel @Inject constructor(
 
     private fun startAggressivePolling(targetStatus: String) {
         viewModelScope.launch {
-            Log.d(TAG, "Starting aggressive polling for target status: $targetStatus")
+            Log.d(tag, "Starting aggressive polling for target status: $targetStatus")
             for (i in 1..12) {
                 if (uiState.climateStatus == targetStatus) {
-                    Log.i(TAG, "Target status reached after $i polls")
+                    Log.i(tag, "Target status reached after $i polls")
                     break
                 }
                 delay(5000)
@@ -357,28 +358,28 @@ class DashboardViewModel @Inject constructor(
         vehicleService.startClimate(authService.selectedVin!!, p, temp)
     }, pin, "ON")
 
-    fun stopClimate(pin: String) = sendCommand("Stop Climate", { p -> 
-        vehicleService.stopClimate(authService.selectedVin!!, p) 
+    fun stopClimate(pin: String) = sendCommand("Stop Climate", { p ->
+        vehicleService.stopClimate(authService.selectedVin!!, p)
     }, pin, "OFF")
 
-    fun flashLights(pin: String) = sendCommand("Flash Lights", { p -> 
-        vehicleService.requestLightHorn(authService.selectedVin!!, p, "lgt") 
+    fun flashLights(pin: String) = sendCommand("Flash Lights", { p ->
+        vehicleService.requestLightHorn(authService.selectedVin!!, p, "lgt")
     }, pin)
 
-    fun soundHorn(pin: String) = sendCommand("Sound Horn", { p -> 
-        vehicleService.requestLightHorn(authService.selectedVin!!, p, "hrn") 
+    fun soundHorn(pin: String) = sendCommand("Sound Horn", { p ->
+        vehicleService.requestLightHorn(authService.selectedVin!!, p, "hrn")
     }, pin)
 
-    fun lockDoors(pin: String) = sendCommand("Lock Doors", { p -> 
-        vehicleService.requestDoorLock(authService.selectedVin!!, p, "alk") 
+    fun lockDoors(pin: String) = sendCommand("Lock Doors", { p ->
+        vehicleService.requestDoorLock(authService.selectedVin!!, p, "alk")
     }, pin)
 
-    fun unlockDoors(pin: String) = sendCommand("Unlock Doors", { p -> 
-        vehicleService.requestDoorLock(authService.selectedVin!!, p, "dulk") 
+    fun unlockDoors(pin: String) = sendCommand("Unlock Doors", { p ->
+        vehicleService.requestDoorLock(authService.selectedVin!!, p, "dulk")
     }, pin)
 
     override fun onCleared() {
-        Log.d(TAG, "DashboardViewModel cleared, disconnecting MQTT")
+        Log.d(tag, "DashboardViewModel cleared, disconnecting MQTT")
         mqttClient?.disconnect()
         refreshJob?.cancel()
         super.onCleared()

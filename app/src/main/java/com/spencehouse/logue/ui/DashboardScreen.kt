@@ -109,72 +109,118 @@ fun DashboardScreen(
             onRefresh = { viewModel.refreshData() },
             modifier = Modifier.padding(innerPadding)
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Status Row
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
+            if (!uiState.isEv) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(16.dp)
                     ) {
-                        Text(uiState.statusText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Last Updated: ${uiState.lastUpdated}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Selected vehicle is not an EV",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Please select an electric vehicle to view detailed dashboard information.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
-
-                // Vehicle Status Section
-                item {
-                    VehicleStatusCard(
-                        percentage = uiState.batteryPercentage ?: 0,
-                        range = uiState.range ?: 0,
-                        odometer = uiState.odometer ?: 0,
-                        targetLimit = uiState.targetChargeLevel,
-                        isEv = uiState.isEv,
-                        useKilometers = uiState.useKilometers,
-                        chargeStatus = uiState.chargeStatus,
-                        chargeVoltage = uiState.chargeVoltage,
-                        isPluggedIn = uiState.isPluggedIn,
-                        onSettingsClick = { showChargeDialog = true }
-                    )
-                }
-
-                // Remote Commands
-                item {
-                    RemoteCommands(
-                        onLock = { showPinDialog = "Lock Doors" to { pin -> viewModel.lockDoors(pin) } },
-                        onUnlock = { showPinDialog = "Unlock Doors" to { pin -> viewModel.unlockDoors(pin) } },
-                        onLights = { showPinDialog = "Flash Lights" to { pin -> viewModel.flashLights(pin) } },
-                        onHorn = { showPinDialog = "Sound Horn" to { pin -> viewModel.soundHorn(pin) } }
-                    )
-                }
-
-                // Climate Section
-                item {
-                    ClimateControl(
-                        status = uiState.climateStatus,
-                        useCelsius = uiState.useCelsius,
-                        onStart = {
-                            showPinDialog = "Start Climate" to { pin -> viewModel.startClimate(pin) }
-                        },
-                        onStop = {
-                            showPinDialog = "Stop Climate" to { pin -> viewModel.stopClimate(pin) }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Status Row
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                uiState.statusText,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Last Updated: ${uiState.lastUpdated}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                    )
-                }
+                    }
 
-                // Tire Pressure
-                item {
-                    TirePressureSection(uiState.tirePressures, uiState.useKpa)
-                }
+                    // Vehicle Status Section
+                    item {
+                        VehicleStatusCard(
+                            percentage = uiState.batteryPercentage ?: 0,
+                            range = uiState.range ?: 0,
+                            odometer = uiState.odometer ?: 0,
+                            targetLimit = uiState.targetChargeLevel,
+                            isEv = uiState.isEv,
+                            useKilometers = uiState.useKilometers,
+                            chargeStatus = uiState.chargeStatus,
+                            chargeVoltage = uiState.chargeVoltage,
+                            isPluggedIn = uiState.isPluggedIn,
+                            onSettingsClick = { showChargeDialog = true }
+                        )
+                    }
 
-                item {
-                    Spacer(modifier = Modifier.height(24.dp))
+                    // Remote Commands
+                    item {
+                        RemoteCommands(
+                            onLock = { showPinDialog = "Lock Doors" to { pin -> viewModel.lockDoors(pin) } },
+                            onUnlock = { showPinDialog = "Unlock Doors" to { pin -> viewModel.unlockDoors(pin) } },
+                            onLights = {
+                                showPinDialog = "Flash Lights" to { pin -> viewModel.flashLights(pin) }
+                            },
+                            onHorn = { showPinDialog = "Sound Horn" to { pin -> viewModel.soundHorn(pin) } }
+                        )
+                    }
+
+                    // Climate Section
+                    item {
+                        ClimateControl(
+                            status = uiState.climateStatus,
+                            useCelsius = uiState.useCelsius,
+                            onStart = {
+                                showPinDialog = "Start Climate" to { pin -> viewModel.startClimate(pin) }
+                            },
+                            onStop = {
+                                showPinDialog = "Stop Climate" to { pin -> viewModel.stopClimate(pin) }
+                            }
+                        )
+                    }
+
+                    // Tire Pressure
+                    item {
+                        TirePressureSection(uiState.tirePressures, uiState.useKpa)
+                    }
+
+                    item {
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
                 }
             }
         }
