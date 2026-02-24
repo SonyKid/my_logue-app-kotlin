@@ -33,6 +33,10 @@ class SessionManager @Inject constructor(@ApplicationContext context: Context) {
         get() = sharedPreferences.getString("honda_vin", null)
         set(value) = sharedPreferences.edit { putString("honda_vin", value) }
 
+    var pin: String?
+        get() = sharedPreferences.getString("honda_pin", null)
+        set(value) = sharedPreferences.edit { putString("honda_pin", value) }
+
     var useCelsius: Boolean
         get() = sharedPreferences.getBoolean("use_celsius", false)
         set(value) = sharedPreferences.edit { putBoolean("use_celsius", value) }

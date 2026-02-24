@@ -22,5 +22,6 @@ data class DashboardUiState(
     val isPluggedIn: Boolean = false,
     val targetChargeLevel: Int = 80,
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val savedPin: String? = null
 )

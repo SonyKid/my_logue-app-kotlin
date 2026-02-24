@@ -184,8 +184,10 @@ fun DashboardScreen(
     showPinDialog?.let { (name, onConfirm) ->
         PinDialog(
             title = "Confirm $name",
+            savedPin = uiState.savedPin,
             onDismiss = { showPinDialog = null },
-            onConfirm = { pin ->
+            onConfirm = { pin, savePin ->
+                viewModel.setPin(if (savePin) pin else null)
                 onConfirm(pin)
                 showPinDialog = null
             }
@@ -506,33 +508,53 @@ fun TirePressureSection(pressures: Map<String, Double?>, useKpa: Boolean) {
 }
 
 @Composable
-fun PinDialog(title: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var pin by remember { mutableStateOf("") }
+fun PinDialog(
+    title: String,
+    savedPin: String?,
+    onDismiss: () -> Unit,
+    onConfirm: (String, Boolean) -> Unit
+) {
+    var pin by remember { mutableStateOf(savedPin ?: "") }
+    var savePin by remember { mutableStateOf(savedPin != null) }
     val focusRequester = remember { FocusRequester() }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, style = MaterialTheme.typography.headlineSmall) },
         text = {
-            OutlinedTextField(
-                value = pin,
-                onValueChange = {
-                    if (it.length <= 4 && it.all { char -> char.isDigit() }) {
-                        pin = it
-                    }
-                },
-                label = { Text("Enter PIN") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester),
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                keyboardActions = KeyboardActions(onDone = { onConfirm(pin) }),
-                singleLine = true
-            )
+            Column {
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = {
+                        if (it.length <= 4 && it.all { char -> char.isDigit() }) {
+                            pin = it
+                        }
+                    },
+                    label = { Text("Enter PIN") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    keyboardActions = KeyboardActions(onDone = { onConfirm(pin, savePin) }),
+                    singleLine = true
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = savePin,
+                        onCheckedChange = { savePin = it }
+                    )
+                    Text("Save PIN", modifier = Modifier.padding(start = 8.dp))
+                }
+            }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(pin) }) { Text("Execute") }
+            TextButton(onClick = { onConfirm(pin, savePin) }) { Text("Execute") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }

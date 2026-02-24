@@ -49,7 +49,8 @@ class DashboardViewModel @Inject constructor(
                 isEv = isEv,
                 useCelsius = authService.sessionManager.useCelsius,
                 useKilometers = authService.sessionManager.useKilometers,
-                useKpa = authService.sessionManager.useKpa
+                useKpa = authService.sessionManager.useKpa,
+                savedPin = authService.sessionManager.pin
             )
             
             if (isEv) {
@@ -312,6 +313,11 @@ class DashboardViewModel @Inject constructor(
             vehicleService.setTargetChargeLevel(vin, level)
             refreshData()
         }
+    }
+
+    fun setPin(pin: String?) {
+        authService.sessionManager.pin = pin
+        uiState = uiState.copy(savedPin = pin)
     }
 
     fun sendCommand(name: String, action: suspend (String) -> Result<String?>, pin: String, targetStatus: String? = null) {
