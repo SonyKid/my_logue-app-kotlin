@@ -12,6 +12,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
@@ -49,11 +50,11 @@ class VehicleService @Inject constructor(
     private val sessionManager: SessionManager,
     private val json: Json
 ) {
-    private fun getHeaders(siteId: String, version: String = "1.0", messageId: String = UUID.randomUUID().toString().uppercase()): Map<String, String> {
-        val accessToken = sessionManager.accessToken ?: throw Exception("No access token")
-        val hidasIdent = sessionManager.hidasIdent ?: throw Exception("No HIDAS ident")
+    private fun getHeaders(siteId: String, version: String = "1.0", messageId: String = UUID.randomUUID().toString().uppercase()): Result<Map<String, String>> {
+        val accessToken = sessionManager.accessToken ?: return Result.failure(Exception("No access token"))
+        val hidasIdent = sessionManager.hidasIdent ?: return Result.failure(Exception("No HIDAS ident"))
 
-        return Config.COMMON_HEADERS.toMutableMap().apply {
+        return Result.success(Config.COMMON_HEADERS.toMutableMap().apply {
             put("Authorization", "Bearer $accessToken")
             put("hondaHeaderType.version", version)
             put("hondaHeaderType.siteId", siteId)
@@ -65,7 +66,7 @@ class VehicleService @Inject constructor(
             put("hondaHeaderType.collectedTimeStamp", SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).format(Date()))
             put("Content-Type", "application/json")
             put("Accept", "application/json")
-        }
+        })
     }
 
     @Suppress("unused")
@@ -127,7 +128,9 @@ class VehicleService @Inject constructor(
         val tag = "VehicleService.CIG"
         return try {
             Log.d(tag, "Fetching CIG Token for VIN: $vin")
-            val headers = getHeaders(siteId = "b407a3025b374f668475e97d2e750816")
+            val headers = getHeaders(siteId = "b407a3025b374f668475e97d2e750816").getOrElse {
+                return Result.failure(it)
+            }
             val resp = wscApi.getCigToken(headers, CigTokenRequest(vin))
             val body = resp.body()
             if (resp.isSuccessful && body?.status == "Success") {
@@ -148,7 +151,9 @@ class VehicleService @Inject constructor(
         val tag = "VehicleService.DashboardReq"
         return try {
             Log.d(tag, "Requesting Dashboard update for VIN: $vin")
-            val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "I-13")
+            val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "I-13").getOrElse {
+                return Result.failure(it)
+            }
             val resp = wscApi.requestDashboard(headers, DashboardRequest(vin, Config.DASHBOARD_FILTERS))
             val body = resp.body()
             if (resp.isSuccessful && body?.status == "success") {
@@ -167,7 +172,9 @@ class VehicleService @Inject constructor(
 
     suspend fun startClimate(vin: String, pin: String, temperature: Int): Result<String> {
         return try {
-            val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1")
+            val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1").getOrElse {
+                return Result.failure(it)
+            }
             val request = ClimateRequest(
                 device = vin,
                 extend = false,
@@ -188,7 +195,9 @@ class VehicleService @Inject constructor(
 
     suspend fun stopClimate(vin: String, pin: String): Result<String> {
         return try {
-            val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1")
+            val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1").getOrElse {
+                return Result.failure(it)
+            }
             val request = ClimateRequest(
                 device = vin,
                 extend = false,
@@ -209,7 +218,9 @@ class VehicleService @Inject constructor(
 
     suspend fun setTargetChargeLevel(vin: String, level: Int): Result<String?> {
         return try {
-            val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1")
+            val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1").getOrElse {
+                return Result.failure(it)
+            }
             val resp = wscApi.setTargetChargeLevel(headers, TargetChargeLevelRequest(vin, level))
             val body = resp.body()
             if (resp.isSuccessful && (body?.status == "success" || body?.status == "IN_PROGRESS")) {
@@ -224,7 +235,9 @@ class VehicleService @Inject constructor(
 
     suspend fun requestLightHorn(vin: String, pin: String, action: String): Result<String?> {
         return try {
-            val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1")
+            val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1").getOrElse {
+                return Result.failure(it)
+            }
             val resp = wscApi.requestLightHorn(action, headers, RemoteCommandRequest(vin, pin))
             val body = resp.body()
             if (resp.isSuccessful && (body?.status == "success" || body?.status == "IN_PROGRESS")) {
@@ -239,7 +252,9 @@ class VehicleService @Inject constructor(
 
     suspend fun requestDoorLock(vin: String, pin: String, action: String): Result<String?> {
         return try {
-            val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1")
+            val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1").getOrElse {
+                return Result.failure(it)
+            }
             val resp = wscApi.requestDoorLock(action, headers, RemoteCommandRequest(vin, pin))
             val body = resp.body()
             if (resp.isSuccessful && (body?.status == "success" || body?.status == "IN_PROGRESS")) {
@@ -252,9 +267,11 @@ class VehicleService @Inject constructor(
         }
     }
 
-    suspend fun getClimateStatus(vin: String): Result<Map<String, Any>> {
+    suspend fun getClimateStatus(vin: String): Result<JsonObject> {
         return try {
-            val headers = getHeaders(siteId = "1d216af12884813987e6b7f75a005a1")
+            val headers = getHeaders(siteId = "1d216af12884813987e6b7f75a005a1").getOrElse {
+                return Result.failure(it)
+            }
             val resp = wscApi.getClimateStatus(vin, headers)
             if (resp.isSuccessful && resp.body() != null) {
                 Result.success(resp.body()!!)

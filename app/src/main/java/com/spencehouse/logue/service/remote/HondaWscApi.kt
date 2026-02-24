@@ -1,6 +1,7 @@
 package com.spencehouse.logue.service.remote
 
 import com.spencehouse.logue.service.remote.dto.*
+import kotlinx.serialization.json.JsonObject
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -58,5 +59,5 @@ interface HondaWscApi {
     suspend fun getClimateStatus(
         @Path("vin") vin: String,
         @HeaderMap headers: Map<String, String>
-    ): Response<Map<String, Any>> // Using Map for generic response
+    ): Response<JsonObject> // Using Map for generic response
 }
