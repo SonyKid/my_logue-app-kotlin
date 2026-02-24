@@ -81,12 +81,17 @@ class VehicleService @Inject constructor(
 
         val onMessageCallback: (String, String) -> Unit = { topic, payload ->
             if (topic.contains("DASHBOARD_ASYNC/update/accepted")) {
-                val response = json.decodeFromString<MqttDashboardResponse>(payload)
-                val dashboardData = DashboardData(
-                    batteryPercentage = response.state.reported.batteryLevel,
-                    range = response.state.reported.range
-                )
-                continuation.resume(Result.success(dashboardData))
+                try {
+                    val response = json.decodeFromString<MqttDashboardResponse>(payload)
+                    val dashboardData = DashboardData(
+                        batteryPercentage = response.state.reported.batteryLevel,
+                        range = response.state.reported.range
+                    )
+                    continuation.resume(Result.success(dashboardData))
+                } catch (e: Exception) {
+                    Log.e("VehicleService.getDashboardData", "Failed to parse MQTT payload", e)
+                    continuation.resumeWithException(e)
+                }
             }
         }
 
