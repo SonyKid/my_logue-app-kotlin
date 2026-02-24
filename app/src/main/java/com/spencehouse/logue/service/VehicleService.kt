@@ -43,6 +43,20 @@ private data class MqttDashboardReported(
     val batteryLevel: Int
 )
 
+@Serializable
+private data class ErrorResponse(
+    val status: String,
+    val responseBody: ErrorResponseBody
+)
+
+@Serializable
+private data class ErrorResponseBody(
+    @SerialName("cigServiceRequestld")
+    val cigServiceRequestId: String?,
+    val errorCode: String,
+    val errorMessage: String
+)
+
 
 @Singleton
 class VehicleService @Inject constructor(
@@ -98,7 +112,9 @@ class VehicleService @Inject constructor(
 
         val onConnected: () -> Unit = {
             scope.launch {
-                requestDashboard(vin)
+                requestDashboard(vin).onFailure {
+                    continuation.resumeWithException(it)
+                }
             }
         }
 
@@ -151,9 +167,11 @@ class VehicleService @Inject constructor(
         val tag = "VehicleService.DashboardReq"
         return try {
             Log.d(tag, "Requesting Dashboard update for VIN: $vin")
-            val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "I-13").getOrElse {
-                return Result.failure(it)
+            val headersResult = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "I-13")
+            if (headersResult.isFailure) {
+                return Result.failure(headersResult.exceptionOrNull()!!)
             }
+            val headers = headersResult.getOrThrow()
             val resp = wscApi.requestDashboard(headers, DashboardRequest(vin, Config.DASHBOARD_FILTERS))
             val body = resp.body()
             if (resp.isSuccessful && body?.status == "success") {
@@ -162,7 +180,15 @@ class VehicleService @Inject constructor(
             } else {
                 val errorBody = resp.errorBody()?.string()
                 Log.e(tag, "Failed Dashboard request. Code: ${resp.code()}, Error: $errorBody")
-                Result.failure(Exception("Dashboard request failed: $errorBody"))
+                if (errorBody != null) {
+                    try {
+                        val error = json.decodeFromString<ErrorResponse>(errorBody)
+                        return Result.failure(Exception(error.responseBody.errorMessage))
+                    } catch (e: Exception) {
+                        Log.w(tag, "Could not parse error body", e)
+                    }
+                }
+                Result.failure(Exception("Dashboard request failed"))
             }
         } catch (e: Exception) {
             Log.e(tag, "Exception during requestDashboard", e)
@@ -171,7 +197,9 @@ class VehicleService @Inject constructor(
     }
 
     suspend fun startClimate(vin: String, pin: String, temperature: Int): Result<String> {
+        val tag = "VehicleService.StartClimate"
         return try {
+            Log.d(tag, "Starting climate for VIN: $vin")
             val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1").getOrElse {
                 return Result.failure(it)
             }
@@ -184,17 +212,23 @@ class VehicleService @Inject constructor(
             val resp = wscApi.startClimate(headers, request)
             val body = resp.body()
             if (resp.isSuccessful && (body?.status == "success" || body?.status == "IN_PROGRESS")) {
+                Log.d(tag, "Successfully started climate. CIG Request ID: ${body.responseBody.cigServiceRequestId}")
                 Result.success(body.responseBody.cigServiceRequestId)
             } else {
-                Result.failure(Exception("Start climate failed"))
+                val errorBody = resp.errorBody()?.string()
+                Log.e(tag, "Failed to start climate. Code: ${resp.code()}, Error: $errorBody")
+                Result.failure(Exception("Start climate failed: $errorBody"))
             }
         } catch (e: Exception) {
+            Log.e(tag, "Exception during startClimate", e)
             Result.failure(e)
         }
     }
 
     suspend fun stopClimate(vin: String, pin: String): Result<String> {
+        val tag = "VehicleService.StopClimate"
         return try {
+            Log.d(tag, "Stopping climate for VIN: $vin")
             val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1").getOrElse {
                 return Result.failure(it)
             }
@@ -207,78 +241,107 @@ class VehicleService @Inject constructor(
             val resp = wscApi.stopClimate(headers, request)
             val body = resp.body()
             if (resp.isSuccessful && (body?.status == "success" || body?.status == "IN_PROGRESS")) {
+                Log.d(tag, "Successfully stopped climate. CIG Request ID: ${body.responseBody.cigServiceRequestId}")
                 Result.success(body.responseBody.cigServiceRequestId)
             } else {
-                Result.failure(Exception("Stop climate failed"))
+                val errorBody = resp.errorBody()?.string()
+                Log.e(tag, "Failed to stop climate. Code: ${resp.code()}, Error: $errorBody")
+                Result.failure(Exception("Stop climate failed: $errorBody"))
             }
         } catch (e: Exception) {
+            Log.e(tag, "Exception during stopClimate", e)
             Result.failure(e)
         }
     }
 
     suspend fun setTargetChargeLevel(vin: String, level: Int): Result<String?> {
+        val tag = "VehicleService.SetChargeTarget"
         return try {
+            Log.d(tag, "Setting charge target for VIN: $vin to $level")
             val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1").getOrElse {
                 return Result.failure(it)
             }
             val resp = wscApi.setTargetChargeLevel(headers, TargetChargeLevelRequest(vin, level))
             val body = resp.body()
             if (resp.isSuccessful && (body?.status == "success" || body?.status == "IN_PROGRESS")) {
+                Log.d(tag, "Successfully set charge target. CIG Request ID: ${body.responseBody?.cigServiceRequestId}")
                 Result.success(body.responseBody?.cigServiceRequestId)
             } else {
-                Result.failure(Exception("Set charge target failed"))
+                val errorBody = resp.errorBody()?.string()
+                Log.e(tag, "Failed to set charge target. Code: ${resp.code()}, Error: $errorBody")
+                Result.failure(Exception("Set charge target failed: $errorBody"))
             }
         } catch (e: Exception) {
+            Log.e(tag, "Exception during setTargetChargeLevel", e)
             Result.failure(e)
         }
     }
 
     suspend fun requestLightHorn(vin: String, pin: String, action: String): Result<String?> {
+        val tag = "VehicleService.LightHorn"
         return try {
+            Log.d(tag, "Requesting $action for VIN: $vin")
             val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1").getOrElse {
                 return Result.failure(it)
             }
             val resp = wscApi.requestLightHorn(action, headers, RemoteCommandRequest(vin, pin))
             val body = resp.body()
             if (resp.isSuccessful && (body?.status == "success" || body?.status == "IN_PROGRESS")) {
+                Log.d(tag, "Successfully requested $action. CIG Request ID: ${body.responseBody?.cigServiceRequestId}")
                 Result.success(body.responseBody?.cigServiceRequestId)
             } else {
-                Result.failure(Exception("Light/Horn failed"))
+                val errorBody = resp.errorBody()?.string()
+                Log.e(tag, "Failed Light/Horn request. Code: ${resp.code()}, Error: $errorBody")
+                Result.failure(Exception("Light/Horn failed: $errorBody"))
             }
         } catch (e: Exception) {
+            Log.e(tag, "Exception during requestLightHorn", e)
             Result.failure(e)
         }
     }
 
     suspend fun requestDoorLock(vin: String, pin: String, action: String): Result<String?> {
+        val tag = "VehicleService.DoorLock"
         return try {
+            Log.d(tag, "Requesting $action for VIN: $vin")
             val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1").getOrElse {
                 return Result.failure(it)
             }
             val resp = wscApi.requestDoorLock(action, headers, RemoteCommandRequest(vin, pin))
             val body = resp.body()
             if (resp.isSuccessful && (body?.status == "success" || body?.status == "IN_PROGRESS")) {
+                Log.d(tag, "Successfully requested $action. CIG Request ID: ${body.responseBody?.cigServiceRequestId}")
                 Result.success(body.responseBody?.cigServiceRequestId)
             } else {
-                Result.failure(Exception("Door lock failed"))
+                val errorBody = resp.errorBody()?.string()
+                Log.e(tag, "Failed Door lock request. Code: ${resp.code()}, Error: $errorBody")
+                Result.failure(Exception("Door lock failed: $errorBody"))
             }
         } catch (e: Exception) {
+            Log.e(tag, "Exception during requestDoorLock", e)
             Result.failure(e)
         }
     }
 
     suspend fun getClimateStatus(vin: String): Result<JsonObject> {
+        val tag = "VehicleService.GetClimateStatus"
         return try {
+            Log.d(tag, "Getting climate status for VIN: $vin")
             val headers = getHeaders(siteId = "1d216af12884813987e6b7f75a005a1").getOrElse {
                 return Result.failure(it)
             }
             val resp = wscApi.getClimateStatus(vin, headers)
-            if (resp.isSuccessful && resp.body() != null) {
-                Result.success(resp.body()!!)
+            val body = resp.body()
+            if (resp.isSuccessful && body != null) {
+                Log.d(tag, "Successfully got climate status")
+                Result.success(body)
             } else {
-                Result.failure(Exception("Failed to get climate status"))
+                val errorBody = resp.errorBody()?.string()
+                Log.e(tag, "Failed to get climate status. Code: ${resp.code()}, Error: $errorBody")
+                Result.failure(Exception("Failed to get climate status: $errorBody"))
             }
         } catch (e: Exception) {
+            Log.e(tag, "Exception during getClimateStatus", e)
             Result.failure(e)
         }
     }
