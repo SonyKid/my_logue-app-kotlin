@@ -6,6 +6,7 @@ import com.spencehouse.logue.service.remote.HondaWscApi
 import com.spencehouse.logue.service.remote.dto.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.SerialName
@@ -69,7 +70,14 @@ class VehicleService @Inject constructor(
 
     @Suppress("unused")
     suspend fun getDashboardData(vin: String): Result<DashboardData> = suspendCancellableCoroutine { continuation ->
-        lateinit var mqttClient: AwsMqttClient
+        var mqttClient: AwsMqttClient? = null
+        val job = Job()
+        val scope = CoroutineScope(Dispatchers.IO + job)
+
+        continuation.invokeOnCancellation {
+            job.cancel()
+            mqttClient?.disconnect()
+        }
 
         val onMessageCallback: (String, String) -> Unit = { topic, payload ->
             if (topic.contains("DASHBOARD_ASYNC/update/accepted")) {
@@ -83,7 +91,7 @@ class VehicleService @Inject constructor(
         }
 
         val onConnected: () -> Unit = {
-            CoroutineScope(Dispatchers.IO).launch {
+            scope.launch {
                 requestDashboard(vin)
             }
         }
@@ -92,9 +100,9 @@ class VehicleService @Inject constructor(
             continuation.resumeWithException(Exception(it))
         }
 
-        CoroutineScope(Dispatchers.IO).launch {
+        scope.launch {
             getCigToken(vin).onSuccess { cigToken ->
-                mqttClient = AwsMqttClient(
+                val client = AwsMqttClient(
                     vin = vin,
                     cigToken = cigToken.token,
                     cigSignature = cigToken.tokenSignature,
@@ -102,11 +110,8 @@ class VehicleService @Inject constructor(
                     onConnected = onConnected,
                     onError = onError
                 )
-                mqttClient.connect()
-
-                continuation.invokeOnCancellation {
-                    mqttClient.disconnect()
-                }
+                mqttClient = client
+                client.connect()
             }.onFailure {
                 continuation.resumeWithException(it)
             }
