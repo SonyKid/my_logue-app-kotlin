@@ -1,6 +1,6 @@
 package com.spencehouse.logue.di
 
-import com.google.gson.Gson
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.spencehouse.logue.service.Config
 import com.spencehouse.logue.service.HeaderInterceptor
 import com.spencehouse.logue.service.remote.HondaWscApi
@@ -9,10 +9,11 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 import javax.inject.Singleton
 
 @Module
@@ -21,8 +22,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideGson(): Gson {
-        return Gson()
+    fun provideJson(): Json {
+        return Json {
+            ignoreUnknownKeys = true
+            coerceInputValues = true
+        }
     }
 
     @Provides
@@ -53,22 +57,22 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideIdentityApi(okHttpClient: OkHttpClient, gson: Gson): IdentityApi {
+    fun provideIdentityApi(okHttpClient: OkHttpClient, json: Json): IdentityApi {
         return Retrofit.Builder()
             .baseUrl(Config.IDENTITY_HOST)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create(gson))
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(IdentityApi::class.java)
     }
 
     @Provides
     @Singleton
-    fun provideHondaWscApi(okHttpClient: OkHttpClient, gson: Gson): HondaWscApi {
+    fun provideHondaWscApi(okHttpClient: OkHttpClient, json: Json): HondaWscApi {
         return Retrofit.Builder()
             .baseUrl(Config.WSC_HOST)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create(gson))
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(HondaWscApi::class.java)
     }

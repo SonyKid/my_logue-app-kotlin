@@ -1,69 +1,66 @@
 package com.spencehouse.logue.service.remote.dto
 
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
-// region Register Client
-data class ClientRegistrationRequest(
-    @SerializedName("client_id") val clientId: String,
-    @SerializedName("client_secret") val clientSecret: String
-)
-
+@Serializable
 data class ClientRegistrationResponse(
-    @SerializedName("clientregistrationkey") val clientRegistrationKey: ClientRegistrationKey
+    @SerialName("clientregistrationkey") val clientRegistrationKey: ClientRegistrationKey
 )
 
+@Serializable
 data class ClientRegistrationKey(
-    @SerializedName("client_reg_key") val clientRegKey: String
+    @SerialName("client_reg_key") val clientRegKey: String
 )
 // endregion
 
-// region Generate Token
-data class TokenRequest(
-    @SerializedName("client_reg_key") val clientRegKey: String,
-    @SerializedName("device_description") val deviceDescription: String,
-    @SerializedName("username") val username: String,
-    @SerializedName("password") val password: String
-)
-
+@Serializable
 data class TokenResponse(
-    @SerializedName("request_status") val requestStatus: String,
-    @SerializedName("token") val token: Token,
-    @SerializedName("user") val user: User
+    @SerialName("request_status") val requestStatus: String,
+    @SerialName("token") val token: Token,
+    @SerialName("user") val user: User
 )
 
+@Serializable
 data class Token(
-    @SerializedName("access_token") val accessToken: String
+    @SerialName("access_token") val accessToken: String
 )
 
+@Serializable
 data class User(
-    @SerializedName("hidas_ident") val hidasIdent: String
+    @SerialName("hidas_ident") val hidasIdent: String
 )
 // endregion
 
 // region My Vehicle
+@Serializable
 data class VehicleInfoResponse(
-    @SerializedName("status") val status: String,
-    @SerializedName("vehicleInfo") val vehicleInfo: List<Vehicle>
+    @SerialName("status") val status: String,
+    @SerialName("vehicleInfo") val vehicleInfo: List<Vehicle>
 )
 
+@Serializable
 data class Vehicle(
-    @SerializedName("VIN") val vin: String,
-    @SerializedName("ModelYear") val modelYear: String,
-    @SerializedName("DivisionName") val divisionName: String,
-    @SerializedName("ModelCode") val modelCode: String
+    @SerialName("VIN") val vin: String,
+    @SerialName("ModelYear") val modelYear: String,
+    @SerialName("DivisionName") val divisionName: String,
+    @SerialName("ModelCode") val modelCode: String
 )
 // endregion
 
 // region CIG Token
+@Serializable
 data class CigTokenRequest(
     val device: String
 )
 
+@Serializable
 data class CigTokenResponse(
     val status: String,
     val responseBody: CigTokenResponseBody
 )
 
+@Serializable
 data class CigTokenResponseBody(
     val token: String,
     val tokenSignature: String
@@ -72,17 +69,21 @@ data class CigTokenResponseBody(
 //endregion
 
 // region Remote Commands
+@Serializable
 data class DashboardRequest(val device: String, val filters: List<String>)
 
+@Serializable
 data class DashboardResponse(
     val status: String,
     val responseBody: DashboardResponseBody
 )
 
+@Serializable
 data class DashboardResponseBody(
     val cigServiceRequestId: String
 )
 
+@Serializable
 data class ClimateRequest(
     val device: String,
     val extend: Boolean,
@@ -90,38 +91,46 @@ data class ClimateRequest(
     val vehicleControl: VehicleControl
 )
 
+@Serializable
 data class VehicleControl(
     val acSetting: AcSetting
 )
 
+@Serializable
 data class AcSetting(
     val acDefSetting: String, // "autoOn", "autoOff"
     val acTempVal: String
 )
 
+@Serializable
 data class ClimateResponse(
     val status: String,
     val responseBody: ClimateResponseBody
 )
 
+@Serializable
 data class ClimateResponseBody(
     val cigServiceRequestId: String
 )
 
+@Serializable
 data class RemoteCommandRequest(
     val device: String,
     val pin: String
 )
 
+@Serializable
 data class RemoteCommandResponse(
     val status: String, // "IN_PROGRESS", "success"
     val responseBody: RemoteCommandResponseBody? = null
 )
 
+@Serializable
 data class RemoteCommandResponseBody(
     val cigServiceRequestId: String
 )
 
+@Serializable
 data class TargetChargeLevelRequest(
     val device: String,
     val targetChargeLevel: Int

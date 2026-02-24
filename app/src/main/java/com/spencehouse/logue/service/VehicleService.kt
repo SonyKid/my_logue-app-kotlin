@@ -1,8 +1,6 @@
 package com.spencehouse.logue.service
 
 import android.util.Log
-import com.google.gson.Gson
-import com.google.gson.annotations.SerializedName
 import com.spencehouse.logue.service.mqtt.AwsMqttClient
 import com.spencehouse.logue.service.remote.HondaWscApi
 import com.spencehouse.logue.service.remote.dto.*
@@ -10,6 +8,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
@@ -22,18 +23,21 @@ data class DashboardData(
     val range: Int
 )
 
+@Serializable
 private data class MqttDashboardResponse(
     val state: MqttDashboardState
 )
 
+@Serializable
 private data class MqttDashboardState(
     val reported: MqttDashboardReported
 )
 
+@Serializable
 private data class MqttDashboardReported(
-    @SerializedName("EV_RANGE")
+    @SerialName("EV_RANGE")
     val range: Int,
-    @SerializedName("EV_BATTERY_LEVEL")
+    @SerialName("EV_BATTERY_LEVEL")
     val batteryLevel: Int
 )
 
@@ -42,7 +46,7 @@ private data class MqttDashboardReported(
 class VehicleService @Inject constructor(
     private val wscApi: HondaWscApi,
     private val sessionManager: SessionManager,
-    private val gson: Gson
+    private val json: Json
 ) {
     private fun getHeaders(siteId: String, version: String = "1.0", messageId: String = UUID.randomUUID().toString().uppercase()): Map<String, String> {
         val accessToken = sessionManager.accessToken ?: throw Exception("No access token")
@@ -63,12 +67,13 @@ class VehicleService @Inject constructor(
         }
     }
 
+    @Suppress("unused")
     suspend fun getDashboardData(vin: String): Result<DashboardData> = suspendCancellableCoroutine { continuation ->
         lateinit var mqttClient: AwsMqttClient
 
         val onMessageCallback: (String, String) -> Unit = { topic, payload ->
             if (topic.contains("DASHBOARD_ASYNC/update/accepted")) {
-                val response = gson.fromJson(payload, MqttDashboardResponse::class.java)
+                val response = json.decodeFromString<MqttDashboardResponse>(payload)
                 val dashboardData = DashboardData(
                     batteryPercentage = response.state.reported.batteryLevel,
                     range = response.state.reported.range
@@ -109,43 +114,43 @@ class VehicleService @Inject constructor(
     }
 
     suspend fun getCigToken(vin: String): Result<CigTokenResponseBody> {
-        val TAG = "VehicleService.CIG"
+        val tag = "VehicleService.CIG"
         return try {
-            Log.d(TAG, "Fetching CIG Token for VIN: $vin")
+            Log.d(tag, "Fetching CIG Token for VIN: $vin")
             val headers = getHeaders(siteId = "b407a3025b374f668475e97d2e750816")
             val resp = wscApi.getCigToken(headers, CigTokenRequest(vin))
             val body = resp.body()
             if (resp.isSuccessful && body?.status == "Success") {
-                Log.d(TAG, "Successfully acquired CIG Token")
+                Log.d(tag, "Successfully acquired CIG Token")
                 Result.success(body.responseBody)
             } else {
                 val errorBody = resp.errorBody()?.string()
-                Log.e(TAG, "Failed CIG Token request. Code: ${resp.code()}, Error: $errorBody")
+                Log.e(tag, "Failed CIG Token request. Code: ${resp.code()}, Error: $errorBody")
                 Result.failure(Exception("Failed to get CIG token: $errorBody"))
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Exception during getCigToken", e)
+            Log.e(tag, "Exception during getCigToken", e)
             Result.failure(e)
         }
     }
 
     suspend fun requestDashboard(vin: String): Result<String> {
-        val TAG = "VehicleService.DashboardReq"
+        val tag = "VehicleService.DashboardReq"
         return try {
-            Log.d(TAG, "Requesting Dashboard update for VIN: $vin")
+            Log.d(tag, "Requesting Dashboard update for VIN: $vin")
             val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "I-13")
             val resp = wscApi.requestDashboard(headers, DashboardRequest(vin, Config.DASHBOARD_FILTERS))
             val body = resp.body()
             if (resp.isSuccessful && body?.status == "success") {
-                Log.d(TAG, "Successfully requested Dashboard update. CIG Request ID: ${body.responseBody.cigServiceRequestId}")
+                Log.d(tag, "Successfully requested Dashboard update. CIG Request ID: ${body.responseBody.cigServiceRequestId}")
                 Result.success(body.responseBody.cigServiceRequestId)
             } else {
                 val errorBody = resp.errorBody()?.string()
-                Log.e(TAG, "Failed Dashboard request. Code: ${resp.code()}, Error: $errorBody")
+                Log.e(tag, "Failed Dashboard request. Code: ${resp.code()}, Error: $errorBody")
                 Result.failure(Exception("Dashboard request failed: $errorBody"))
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Exception during requestDashboard", e)
+            Log.e(tag, "Exception during requestDashboard", e)
             Result.failure(e)
         }
     }
