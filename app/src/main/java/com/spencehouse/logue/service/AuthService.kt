@@ -3,7 +3,10 @@ package com.spencehouse.logue.service
 import android.util.Log
 import com.spencehouse.logue.service.remote.HondaWscApi
 import com.spencehouse.logue.service.remote.IdentityApi
+import com.spencehouse.logue.service.remote.dto.TokenResponse
 import com.spencehouse.logue.service.remote.dto.Vehicle
+import kotlinx.coroutines.delay
+import retrofit2.Response
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -17,7 +20,7 @@ class AuthService @Inject constructor(
     private val wscApi: HondaWscApi,
     val sessionManager: SessionManager
 ) {
-    private val TAG = "AuthService"
+    private val tag = "AuthService"
     var vehicles: List<Vehicle> = emptyList()
     var selectedVin: String? = null
 
@@ -28,9 +31,9 @@ class AuthService @Inject constructor(
         if (finalUsername.isNullOrEmpty() || finalPassword.isNullOrEmpty()) {
             return Result.failure(Exception("No credentials provided"))
         }
-        
+
         return try {
-            Log.d(TAG, "Starting login for $finalUsername")
+            Log.d(tag, "Starting login for $finalUsername")
             // 1. Register Client
             val regResp = identityApi.registerClient(
                 mapOf(
@@ -40,18 +43,30 @@ class AuthService @Inject constructor(
             )
             val clientRegKey = regResp.body()?.clientRegistrationKey?.clientRegKey
                 ?: return Result.failure(Exception("Failed to register client: ${regResp.code()}"))
-            Log.d(TAG, "Client registered successfully")
+            Log.d(tag, "Client registered successfully")
 
-            // 2. Generate Token
-            val tokenResp = identityApi.generateToken(
-                mapOf(
-                    "client_reg_key" to clientRegKey,
-                    "device_description" to "Android_Logue_Client",
-                    "username" to finalUsername,
-                    "password" to finalPassword
+            // 2. Generate Token with retry
+            var attempt = 0
+            var tokenResp: Response<TokenResponse>? = null
+            while (attempt < 3) {
+                Log.d(tag, "Attempting to generate token, attempt ${attempt + 1}")
+                tokenResp = identityApi.generateToken(
+                    mapOf(
+                        "client_reg_key" to clientRegKey,
+                        "device_description" to "Android_Logue_Client",
+                        "username" to finalUsername,
+                        "password" to finalPassword
+                    )
                 )
-            )
-            val tokenData = tokenResp.body() ?: return Result.failure(Exception("Auth failed: ${tokenResp.code()}"))
+                if (tokenResp.isSuccessful) {
+                    break
+                }
+                Log.w(tag, "Token generation failed with code: ${tokenResp.code()}. Retrying in 1 second.")
+                delay(1000)
+                attempt++
+            }
+
+            val tokenData = tokenResp?.body() ?: return Result.failure(Exception("Auth failed: ${tokenResp?.code()}"))
             if (tokenData.requestStatus != "success") {
                 return Result.failure(Exception("Auth status: ${tokenData.requestStatus}"))
             }
@@ -60,7 +75,7 @@ class AuthService @Inject constructor(
             sessionManager.hidasIdent = tokenData.user.hidasIdent
             sessionManager.username = finalUsername
             sessionManager.password = finalPassword
-            Log.d(TAG, "Token generated and session saved")
+            Log.d(tag, "Token generated and session saved")
 
             // 3. Get Vehicles
             val vehicleHeaders = Config.COMMON_HEADERS.toMutableMap().apply {
@@ -71,20 +86,22 @@ class AuthService @Inject constructor(
                 put("hondaHeaderType.systemId", "com.honda.dealer.cv_android")
                 put("hondaHeaderType.userId", sessionManager.hidasIdent!!)
                 put("hondaHeaderType.clientType", "Mobile")
-                put("hondaHeaderType.collectedTimeStamp", SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).format(Date()))
+                put("hondaHeaderType.collectedTimeStamp", SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).format(
+                    Date()
+                ))
                 put("Content-Type", "application/json")
                 put("Accept", "application/json")
             }
 
             val vehiclesResp = wscApi.getVehicles(vehicleHeaders)
             val vehicleData = vehiclesResp.body() ?: return Result.failure(Exception("Failed to get vehicles: ${vehiclesResp.code()}"))
-            
+
             if (vehicleData.status != "SUCCESS") {
                 return Result.failure(Exception("Get vehicles failed: ${vehicleData.status}"))
             }
 
             this.vehicles = vehicleData.vehicleInfo
-            Log.d(TAG, "Fetched ${vehicles.size} vehicles")
+            Log.d(tag, "Fetched ${vehicles.size} vehicles")
             if (vehicles.isEmpty()) {
                 return Result.failure(Exception("No vehicles found on this account"))
             }
@@ -92,11 +109,11 @@ class AuthService @Inject constructor(
             val savedVin = sessionManager.vin
             this.selectedVin = vin ?: savedVin ?: vehicles.first().vin
             sessionManager.vin = selectedVin
-            Log.d(TAG, "Selected VIN: $selectedVin")
+            Log.d(tag, "Selected VIN: $selectedVin")
 
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Login exception", e)
+            Log.e(tag, "Login exception", e)
             Result.failure(e)
         }
     }
@@ -104,11 +121,11 @@ class AuthService @Inject constructor(
     fun updateSelectedVin(vin: String) {
         this.selectedVin = vin
         sessionManager.vin = vin
-        Log.d(TAG, "Persistence updated for VIN: $vin")
+        Log.d(tag, "Persistence updated for VIN: $vin")
     }
 
     fun logout() {
-        Log.d(TAG, "Logging out")
+        Log.d(tag, "Logging out")
         sessionManager.logout()
         vehicles = emptyList()
         selectedVin = null
@@ -117,7 +134,7 @@ class AuthService @Inject constructor(
     fun getVehicleName(): String {
         val vehicle = vehicles.find { it.vin == selectedVin } ?: vehicles.firstOrNull()
         val name = vehicle?.let { "${it.modelYear} ${it.divisionName} ${it.modelCode}" } ?: "Unknown Vehicle"
-        Log.d(TAG, "getVehicleName: $name (selectedVin: $selectedVin, vehicleCount: ${vehicles.size})")
+        Log.d(tag, "getVehicleName: $name (selectedVin: $selectedVin, vehicleCount: ${vehicles.size})")
         return name
     }
 
