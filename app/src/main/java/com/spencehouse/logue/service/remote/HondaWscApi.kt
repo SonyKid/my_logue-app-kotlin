@@ -48,6 +48,13 @@ interface HondaWscApi {
         @Body request: RemoteCommandRequest
     ): Response<RemoteCommandResponse>
 
+    @POST("REST/NGT/CIG/cfhl/async/{action}")
+    suspend fun requestStopLightHorn(
+        @Path("action") action: String, // "sop"
+        @HeaderMap headers: Map<String, String>,
+        @Body request: RemoteCommandRequest
+    ): Response<RemoteCommandResponse>
+
     @POST("REST/NGT/CIG/lk/async/{action}")
     suspend fun requestDoorLock(
         @Path("action") action: String, // "alk" or "dulk"

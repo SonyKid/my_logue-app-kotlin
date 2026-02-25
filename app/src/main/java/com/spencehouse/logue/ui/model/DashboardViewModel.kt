@@ -30,6 +30,7 @@ class DashboardViewModel @Inject constructor(
 
     private var mqttClient: AwsMqttClient? = null
     private var refreshJob: Job? = null
+    private var carFinderPollingJob: Job? = null
 
     var isRefreshing by mutableStateOf(false)
         private set
@@ -128,10 +129,26 @@ class DashboardViewModel @Inject constructor(
                 updateDashboardUi(json)
             } else if (topic.contains("ENGINE_START_STOP_ASYNC")) {
                 Log.d(tag, "Engine start/stop update received")
+            } else if (topic.contains("CARFINDER_HORN_LIGHT_ASYNC")) {
+                updateCarFinderUi(json)
             }
         } catch (e: Exception) {
             Log.e(tag, "Error parsing MQTT message", e)
         }
+    }
+
+    private fun updateCarFinderUi(data: JSONObject) {
+        val reported = data.optJSONObject("state")?.optJSONObject("reported") ?: return
+        val rb = reported.optJSONObject("responseBody") ?: return
+
+        Log.d(tag, "Updating UI with reported car finder data")
+        val lightStatus = rb.optString("lightStatus", "OFF")
+        val hornStatus = rb.optString("hornStatus", "OFF")
+
+        uiState = uiState.copy(
+            isFlashing = lightStatus == "ON",
+            isHonking = hornStatus == "ON"
+        )
     }
 
     private fun updateDashboardUi(data: JSONObject) {
@@ -329,7 +346,67 @@ class DashboardViewModel @Inject constructor(
         uiState = uiState.copy(savedPin = pin)
     }
 
-    fun sendCommand(name: String, action: suspend (String) -> Result<String?>, pin: String, targetStatus: String? = null) {
+    private suspend fun sendCommand(name: String, action: suspend (String) -> Result<String?>, pin: String): Result<String?> {
+        Log.i(tag, "Sending command: $name")
+        updateStatus("Sending $name command...")
+        val result = action(pin)
+        result.onSuccess {
+            Log.i(tag, "Command $name sent successfully")
+            updateStatus("$name command sent!")
+        }.onFailure {
+            Log.e(tag, "Command $name failed", it)
+            updateStatus("$name failed: ${it.message}")
+        }
+        return result
+    }
+
+    private fun sendCarFinderCommand(name: String, action: suspend (String) -> Result<String?>, pin: String, targetIsOff: Boolean = false) {
+        viewModelScope.launch {
+            val result = sendCommand(name, action, pin)
+            result.onSuccess {
+                startCarFinderPolling(targetIsOff)
+            }
+        }
+    }
+
+    private fun startCarFinderPolling(targetIsOff: Boolean) {
+        carFinderPollingJob?.cancel()
+        carFinderPollingJob = viewModelScope.launch {
+            Log.d(tag, "Starting car finder polling for targetIsOff: $targetIsOff")
+            for (i in 1..12) { // Increased polling attempts
+                if (!isActive) return@launch
+                updateStatus("Checking status... (attempt $i)")
+
+                val conditionMet = if (targetIsOff) {
+                    !uiState.isFlashing && !uiState.isHonking
+                } else {
+                    uiState.isFlashing || uiState.isHonking
+                }
+
+                if (conditionMet) {
+                    if (targetIsOff) {
+                        Log.i(tag, "Target status (OFF) reached after $i polls")
+                        updateStatus("Lights and Horn are off.")
+                    } else {
+                        Log.i(tag, "Target status (ON) reached after $i polls")
+                        when {
+                            uiState.isFlashing && uiState.isHonking -> updateStatus("Lights and Horn are on.")
+                            uiState.isFlashing -> updateStatus("Lights are turning on.")
+                            else -> updateStatus("Horn is turning on.")
+                        }
+                    }
+                    this.cancel()
+                    return@launch
+                }
+                delay(5000) // Increased delay
+                refreshData() // Actively refresh data
+            }
+            Log.w(tag, "Car finder polling timed out")
+            updateStatus("Failed to get status.")
+        }
+    }
+
+    private fun sendCommandWithPolling(name: String, action: suspend (String) -> Result<String?>, pin: String, targetStatus: String) {
         viewModelScope.launch {
             Log.i(tag, "Sending command: $name")
             updateStatus("Sending $name command...")
@@ -337,9 +414,7 @@ class DashboardViewModel @Inject constructor(
             result.onSuccess {
                 Log.i(tag, "Command $name sent successfully")
                 updateStatus("$name command sent!")
-                if (targetStatus != null) {
-                    startAggressivePolling(targetStatus)
-                }
+                startAggressivePolling(targetStatus)
             }.onFailure {
                 Log.e(tag, "Command $name failed", it)
                 updateStatus("$name failed: ${it.message}")
@@ -347,48 +422,88 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private fun startAggressivePolling(targetStatus: String) {
-        viewModelScope.launch {
-            Log.d(tag, "Starting aggressive polling for target status: $targetStatus")
-            for (i in 1..12) {
-                if (uiState.climateStatus == targetStatus) {
-                    Log.i(tag, "Target status reached after $i polls")
-                    break
-                }
-                delay(5000)
-                refreshData()
-            }
-        }
-    }
-
-    fun startClimate(pin: String, temp: Int) = sendCommand("Start Climate", { p ->
+    fun startClimate(pin: String, temp: Int) = sendCommandWithPolling("Start Climate", { p ->
         vehicleService.startClimate(authService.selectedVin!!, p, temp)
     }, pin, "ON")
 
-    fun stopClimate(pin: String) = sendCommand("Stop Climate", { p ->
+    fun stopClimate(pin: String) = sendCommandWithPolling("Stop Climate", { p ->
         vehicleService.stopClimate(authService.selectedVin!!, p)
     }, pin, "OFF")
 
-    fun flashLights(pin: String) = sendCommand("Flash Lights", { p ->
-        vehicleService.requestLightHorn(authService.selectedVin!!, p, "lgt")
-    }, pin)
+    fun toggleFlashLights(pin: String) {
+        if (uiState.isFlashing) {
+            stopFlashAndHorn(pin)
+        } else {
+            flashLights(pin)
+        }
+    }
 
-    fun soundHorn(pin: String) = sendCommand("Sound Horn", { p ->
-        vehicleService.requestLightHorn(authService.selectedVin!!, p, "hrn")
-    }, pin)
+    fun toggleSoundHorn(pin: String) {
+        if (uiState.isHonking) {
+            stopFlashAndHorn(pin)
+        } else {
+            soundHorn(pin)
+        }
+    }
 
-    fun lockDoors(pin: String) = sendCommand("Lock Doors", { p ->
-        vehicleService.requestDoorLock(authService.selectedVin!!, p, "alk")
-    }, pin)
+    fun flashLights(pin: String) {
+        uiState = uiState.copy(isFlashing = true)
+        sendCarFinderCommand("Flash Lights", { p ->
+            vehicleService.requestLightHorn(authService.selectedVin!!, p, "lgt")
+        }, pin)
+    }
 
-    fun unlockDoors(pin: String) = sendCommand("Unlock Doors", { p ->
-        vehicleService.requestDoorLock(authService.selectedVin!!, p, "dulk")
-    }, pin)
+    fun soundHorn(pin: String) {
+        uiState = uiState.copy(isHonking = true)
+        sendCarFinderCommand("Sound Horn", { p ->
+            vehicleService.requestLightHorn(authService.selectedVin!!, p, "hrn")
+        }, pin)
+    }
+
+    fun stopFlashAndHorn(pin: String) {
+        uiState = uiState.copy(isFlashing = false, isHonking = false)
+        sendCarFinderCommand("Stop Flash and Horn", { p ->
+            vehicleService.requestStopLightHorn(authService.selectedVin!!, p)
+        }, pin, true)
+    }
+
+    fun lockDoors(pin: String) {
+        viewModelScope.launch {
+            sendCommand("Lock Doors", { p ->
+                vehicleService.requestDoorLock(authService.selectedVin!!, p, "alk")
+            }, pin)
+        }
+    }
+
+    fun unlockDoors(pin: String) {
+        viewModelScope.launch {
+            sendCommand("Unlock Doors", { p ->
+                vehicleService.requestDoorLock(authService.selectedVin!!, p, "dulk")
+            }, pin)
+        }
+    }
 
     override fun onCleared() {
         Log.d(tag, "DashboardViewModel cleared, disconnecting MQTT")
         mqttClient?.disconnect()
         refreshJob?.cancel()
+        carFinderPollingJob?.cancel()
         super.onCleared()
+    }
+
+    private fun startAggressivePolling(targetStatus: String) {
+        viewModelScope.launch {
+            Log.d(tag, "Starting aggressive polling for target status: $targetStatus")
+            for (i in 1..12) {
+                if (!isActive) return@launch
+                if (uiState.climateStatus == targetStatus) {
+                    Log.i(tag, "Target status reached after $i polls")
+                    updateStatus("Climate is ${targetStatus.lowercase()}.")
+                    this.cancel()
+                }
+                delay(5000)
+                refreshData()
+            }
+        }
     }
 }

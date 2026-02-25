@@ -7,6 +7,7 @@ import com.spencehouse.logue.service.remote.dto.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.SerialName
@@ -142,25 +143,35 @@ class VehicleService @Inject constructor(
 
     suspend fun getCigToken(vin: String): Result<CigTokenResponseBody> {
         val tag = "VehicleService.CIG"
-        return try {
-            Log.d(tag, "Fetching CIG Token for VIN: $vin")
-            val headers = getHeaders(siteId = "b407a3025b374f668475e97d2e750816").getOrElse {
-                return Result.failure(it)
+        var attempt = 0
+        while (attempt < 3) {
+            try {
+                Log.d(tag, "Fetching CIG Token for VIN: $vin, Attempt: ${attempt + 1}")
+                val headers = getHeaders(siteId = "b407a3025b374f668475e97d2e750816").getOrElse {
+                    return Result.failure(it)
+                }
+                val resp = wscApi.getCigToken(headers, CigTokenRequest(vin))
+                val body = resp.body()
+                if (resp.isSuccessful && body?.status == "Success") {
+                    Log.d(tag, "Successfully acquired CIG Token")
+                    return Result.success(body.responseBody)
+                } else {
+                    val errorBody = resp.errorBody()?.string()
+                    Log.e(tag, "Failed CIG Token request. Code: ${resp.code()}, Error: $errorBody")
+                    if (resp.code() == 400 && attempt < 2) {
+                        Log.d(tag, "Retrying after 1 second")
+                        delay(1000)
+                    } else {
+                        return Result.failure(Exception("Failed to get CIG token: $errorBody"))
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(tag, "Exception during getCigToken", e)
+                if (attempt >= 2) return Result.failure(e)
             }
-            val resp = wscApi.getCigToken(headers, CigTokenRequest(vin))
-            val body = resp.body()
-            if (resp.isSuccessful && body?.status == "Success") {
-                Log.d(tag, "Successfully acquired CIG Token")
-                Result.success(body.responseBody)
-            } else {
-                val errorBody = resp.errorBody()?.string()
-                Log.e(tag, "Failed CIG Token request. Code: ${resp.code()}, Error: $errorBody")
-                Result.failure(Exception("Failed to get CIG token: $errorBody"))
-            }
-        } catch (e: Exception) {
-            Log.e(tag, "Exception during getCigToken", e)
-            Result.failure(e)
+            attempt++
         }
+        return Result.failure(Exception("Failed to get CIG token after 3 attempts"))
     }
 
     suspend fun requestDashboard(vin: String): Result<String> {
@@ -296,6 +307,29 @@ class VehicleService @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(tag, "Exception during requestLightHorn", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun requestStopLightHorn(vin: String, pin: String): Result<String?> {
+        val tag = "VehicleService.StopLightHorn"
+        return try {
+            Log.d(tag, "Requesting stop for lights and horn for VIN: $vin")
+            val headers = getHeaders(siteId = "18d216af12884813987e6b7f75a005a1", messageId = "S-1").getOrElse {
+                return Result.failure(it)
+            }
+            val resp = wscApi.requestStopLightHorn("sop", headers, RemoteCommandRequest(vin, pin))
+            val body = resp.body()
+            if (resp.isSuccessful && (body?.status == "success" || body?.status == "IN_PROGRESS")) {
+                Log.d(tag, "Successfully requested stop for lights and horn. CIG Request ID: ${body.responseBody?.cigServiceRequestId}")
+                Result.success(body.responseBody?.cigServiceRequestId)
+            } else {
+                val errorBody = resp.errorBody()?.string()
+                Log.e(tag, "Failed Stop Light/Horn request. Code: ${resp.code()}, Error: $errorBody")
+                Result.failure(Exception("Stop Light/Horn failed: $errorBody"))
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Exception during requestStopLightHorn", e)
             Result.failure(e)
         }
     }

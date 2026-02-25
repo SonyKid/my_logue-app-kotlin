@@ -49,12 +49,16 @@ class SessionManager @Inject constructor(@ApplicationContext context: Context) {
         get() = sharedPreferences.getBoolean("use_kpa", false)
         set(value) = sharedPreferences.edit { putBoolean("use_kpa", value) }
 
-    var accessToken: String? = null
-    var hidasIdent: String? = null
+    var accessToken: String?
+        get() = sharedPreferences.getString("access_token", null)
+        set(value) = sharedPreferences.edit { putString("access_token", value) }
+
+    var hidasIdent: String?
+        get() = sharedPreferences.getString("hidas_ident", null)
+        set(value) = sharedPreferences.edit { putString("hidas_ident", value) }
+
 
     fun logout() {
         sharedPreferences.edit { clear() }
-        accessToken = null
-        hidasIdent = null
     }
 }

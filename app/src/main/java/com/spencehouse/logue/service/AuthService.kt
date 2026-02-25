@@ -22,10 +22,14 @@ class AuthService @Inject constructor(
     var selectedVin: String? = null
 
     suspend fun login(username: String? = null, password: String? = null, vin: String? = null): Result<Unit> {
+        val finalUsername = username ?: sessionManager.username
+        val finalPassword = password ?: sessionManager.password
+
+        if (finalUsername.isNullOrEmpty() || finalPassword.isNullOrEmpty()) {
+            return Result.failure(Exception("No credentials provided"))
+        }
+        
         return try {
-            val finalUsername = username ?: sessionManager.username ?: return Result.failure(Exception("No username provided"))
-            val finalPassword = password ?: sessionManager.password ?: return Result.failure(Exception("No password provided"))
-            
             Log.d(TAG, "Starting login for $finalUsername")
             // 1. Register Client
             val regResp = identityApi.registerClient(

@@ -190,12 +190,18 @@ fun DashboardScreen(
                     // Remote Commands
                     item {
                         RemoteCommands(
+                            isFlashing = uiState.isFlashing,
+                            isHonking = uiState.isHonking,
                             onLock = { showPinDialog = "Lock Doors" to { pin -> viewModel.lockDoors(pin) } },
                             onUnlock = { showPinDialog = "Unlock Doors" to { pin -> viewModel.unlockDoors(pin) } },
                             onLights = {
-                                showPinDialog = "Flash Lights" to { pin -> viewModel.flashLights(pin) }
+                                val action = if (uiState.isFlashing) "Stop Lights" else "Flash Lights"
+                                showPinDialog = action to { pin -> viewModel.toggleFlashLights(pin) }
                             },
-                            onHorn = { showPinDialog = "Sound Horn" to { pin -> viewModel.soundHorn(pin) } }
+                            onHorn = {
+                                val action = if (uiState.isHonking) "Stop Horn" else "Sound Horn"
+                                showPinDialog = action to { pin -> viewModel.toggleSoundHorn(pin) }
+                            }
                         )
                     }
 
@@ -410,6 +416,8 @@ fun VehicleStatusCard(
 
 @Composable
 fun RemoteCommands(
+    isFlashing: Boolean,
+    isHonking: Boolean,
     onLock: () -> Unit,
     onUnlock: () -> Unit,
     onLights: () -> Unit,
@@ -429,20 +437,39 @@ fun RemoteCommands(
             }
             Spacer(modifier = Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                CommandButton("Lights", Icons.Default.Highlight, Modifier.weight(1f)) { onLights() }
-                CommandButton("Horn", Icons.Default.Campaign, Modifier.weight(1f)) { onHorn() }
+                val lightsButtonText = if (isFlashing) "Stop Lights" else "Lights"
+                val lightsButtonColors = if (isFlashing) {
+                    ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)
+                } else {
+                    ButtonDefaults.filledTonalButtonColors()
+                }
+                CommandButton(lightsButtonText, Icons.Default.Highlight, Modifier.weight(1f), colors = lightsButtonColors) { onLights() }
+
+                val hornButtonText = if (isHonking) "Stop Horn" else "Horn"
+                val hornButtonColors = if (isHonking) {
+                    ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)
+                } else {
+                    ButtonDefaults.filledTonalButtonColors()
+                }
+                CommandButton(hornButtonText, Icons.Default.Campaign, Modifier.weight(1f), colors = hornButtonColors) { onHorn() }
             }
         }
     }
 }
 
 @Composable
-fun CommandButton(text: String, icon: ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun CommandButton(
+    text: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    colors: ButtonColors = ButtonDefaults.filledTonalButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+    onClick: () -> Unit
+) {
     FilledTonalButton(
         onClick = onClick,
         modifier = modifier.defaultMinSize(minHeight = 56.dp),
         shape = MaterialTheme.shapes.medium,
-        colors = ButtonDefaults.filledTonalButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
+        colors = colors
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
