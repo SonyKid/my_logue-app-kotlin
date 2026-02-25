@@ -236,7 +236,7 @@ class VehicleService @Inject constructor(
                 device = vin,
                 extend = false,
                 pin = pin,
-                vehicleControl = VehicleControl(AcSetting("autoOff", "72"))
+                vehicleControl = VehicleControl(AcSetting("autoOff", ""))
             )
             val resp = wscApi.stopClimate(headers, request)
             val body = resp.body()

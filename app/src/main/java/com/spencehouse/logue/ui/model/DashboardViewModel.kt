@@ -361,8 +361,7 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun startClimate(pin: String) = sendCommand("Start Climate", { p ->
-        val temp = if (uiState.useCelsius) 22 else 72
+    fun startClimate(pin: String, temp: Int) = sendCommand("Start Climate", { p ->
         vehicleService.startClimate(authService.selectedVin!!, p, temp)
     }, pin, "ON")
 

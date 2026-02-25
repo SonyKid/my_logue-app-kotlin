@@ -204,8 +204,8 @@ fun DashboardScreen(
                         ClimateControl(
                             status = uiState.climateStatus,
                             useCelsius = uiState.useCelsius,
-                            onStart = {
-                                showPinDialog = "Start Climate" to { pin -> viewModel.startClimate(pin) }
+                            onStart = { temp ->
+                                showPinDialog = "Start Climate" to { pin -> viewModel.startClimate(pin, temp) }
                             },
                             onStop = {
                                 showPinDialog = "Stop Climate" to { pin -> viewModel.stopClimate(pin) }
@@ -462,7 +462,7 @@ fun CommandButton(text: String, icon: ImageVector, modifier: Modifier = Modifier
 }
 
 @Composable
-fun ClimateControl(status: String, useCelsius: Boolean, onStart: () -> Unit, onStop: () -> Unit) {
+fun ClimateControl(status: String, useCelsius: Boolean, onStart: (Int) -> Unit, onStop: () -> Unit) {
     var temp by remember(useCelsius) { mutableIntStateOf(if (useCelsius) 22 else 72) }
     val isOn = status != "OFF"
 
@@ -493,7 +493,7 @@ fun ClimateControl(status: String, useCelsius: Boolean, onStart: () -> Unit, onS
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = { if (isOn) onStop() else onStart() },
+                onClick = { if (isOn) onStop() else onStart(temp) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isOn) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
