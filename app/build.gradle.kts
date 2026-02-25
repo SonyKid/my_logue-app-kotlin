@@ -15,8 +15,8 @@ android {
         applicationId = "com.spencehouse.logue"
         minSdk = 24
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.4.3"
+        versionCode = 5
+        versionName = "0.4.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

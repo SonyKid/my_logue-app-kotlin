@@ -710,7 +710,7 @@ fun SettingsDialog(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
                 
                 Text("Logue App", style = MaterialTheme.typography.titleMedium)
-                Text("Version 0.4.3", style = MaterialTheme.typography.bodySmall)
+                Text("Version 0.4.4", style = MaterialTheme.typography.bodySmall)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Logue is an open-source alternative client for Honda and Acura connected vehicles.")
                 Spacer(modifier = Modifier.height(8.dp))
