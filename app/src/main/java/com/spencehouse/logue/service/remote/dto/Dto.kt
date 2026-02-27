@@ -44,7 +44,9 @@ data class Vehicle(
     @SerialName("VIN") val vin: String,
     @SerialName("ModelYear") val modelYear: String,
     @SerialName("DivisionName") val divisionName: String,
-    @SerialName("ModelCode") val modelCode: String
+    @SerialName("ModelCode") val modelCode: String,
+    @SerialName("Alias Name") val aliasName: String?,
+    @SerialName("Asset34FrontPath") val asset34FrontPath: String?
 )
 // endregion
 

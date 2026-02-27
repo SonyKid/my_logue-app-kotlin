@@ -133,7 +133,7 @@ class AuthService @Inject constructor(
 
     fun getVehicleName(): String {
         val vehicle = vehicles.find { it.vin == selectedVin } ?: vehicles.firstOrNull()
-        val name = vehicle?.let { "${it.modelYear} ${it.divisionName} ${it.modelCode}" } ?: "Unknown Vehicle"
+        val name = vehicle?.aliasName ?: vehicle?.let { "${it.modelYear} ${it.divisionName} ${it.modelCode}" } ?: "Unknown Vehicle"
         Log.d(tag, "getVehicleName: $name (selectedVin: $selectedVin, vehicleCount: ${vehicles.size})")
         return name
     }

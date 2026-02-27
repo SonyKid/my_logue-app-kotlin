@@ -1,16 +1,24 @@
 package com.spencehouse.logue.ui.model
 
-import com.spencehouse.logue.service.remote.dto.Vehicle
+data class VehicleUiModel(
+    val vin: String,
+    val modelYear: String,
+    val divisionName: String,
+    val modelCode: String,
+    val aliasName: String?,
+    val asset34FrontPath: String?
+)
 
 data class DashboardUiState(
     val vehicleName: String = "",
-    val vehicles: List<Vehicle> = emptyList(),
+    val vehicles: List<VehicleUiModel> = emptyList(),
     val selectedVin: String? = null,
     val isEv: Boolean = true,
     val batteryPercentage: Int? = null,
     val range: Int? = null,
     val chargeStatus: String = "--",
     val chargeVoltage: String? = null,
+    val chargeCompletionTime: String? = null,
     val odometer: Int? = null,
     val tirePressures: Map<String, Double?> = emptyMap(),
     val climateStatus: String = "OFF",

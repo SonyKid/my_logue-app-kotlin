@@ -1,6 +1,7 @@
 package com.spencehouse.logue.ui
 
 import android.annotation.SuppressLint
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,17 +18,26 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.spencehouse.logue.R
+import com.spencehouse.logue.di.ImageLoaderEntryPoint
 import com.spencehouse.logue.ui.model.DashboardViewModel
+import dagger.hilt.android.EntryPointAccessors
 import kotlin.math.min
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -41,6 +51,9 @@ fun DashboardScreen(
     var showChargeDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val imageLoader = EntryPointAccessors.fromApplication(context, ImageLoaderEntryPoint::class.java).imageLoader()
+
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -58,6 +71,26 @@ fun DashboardScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.clickable { expanded = true }
                         ) {
+                            val selectedVehicle = uiState.vehicles.find { it.vin == uiState.selectedVin }
+                            Log.d("DashboardScreen", "Selected vehicle image URL: ${selectedVehicle?.asset34FrontPath}")
+                            if (selectedVehicle?.asset34FrontPath != null) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(selectedVehicle.asset34FrontPath)
+                                        .error(R.drawable.ic_launcher_foreground)
+                                        .listener(onError = { _, result ->
+                                            Log.e("DashboardScreen", "Coil error: ${result.throwable}")
+                                        })
+                                        .build(),
+                                    contentDescription = "Vehicle Image",
+                                    imageLoader = imageLoader,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                            }
                             Text(
                                 text = uiState.vehicleName,
                                 style = MaterialTheme.typography.titleLarge,
@@ -78,10 +111,25 @@ fun DashboardScreen(
                             uiState.vehicles.forEach { vehicle ->
                                 DropdownMenuItem(
                                     text = {
-                                        Text(
-                                            "${vehicle.modelYear} ${vehicle.divisionName} ${vehicle.modelCode}",
-                                            color = if (vehicle.vin == uiState.selectedVin) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (vehicle.asset34FrontPath != null) {
+                                                AsyncImage(
+                                                    model = vehicle.asset34FrontPath,
+                                                    contentDescription = "Vehicle Image",
+                                                    imageLoader = imageLoader,
+                                                    modifier = Modifier
+                                                        .size(40.dp)
+                                                        .clip(CircleShape),
+                                                    contentScale = ContentScale.Crop,
+                                                    placeholder = painterResource(id = R.drawable.ic_launcher_foreground)
+                                                )
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                            }
+                                            Text(
+                                                vehicle.aliasName ?: "${vehicle.modelYear} ${vehicle.divisionName} ${vehicle.modelCode}",
+                                                color = if (vehicle.vin == uiState.selectedVin) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
                                     },
                                     onClick = {
                                         viewModel.onVehicleChange(vehicle.vin)
@@ -182,6 +230,7 @@ fun DashboardScreen(
                             useKilometers = uiState.useKilometers,
                             chargeStatus = uiState.chargeStatus,
                             chargeVoltage = uiState.chargeVoltage,
+                            chargeCompletionTime = uiState.chargeCompletionTime,
                             isPluggedIn = uiState.isPluggedIn,
                             onSettingsClick = { showChargeDialog = true }
                         )
@@ -286,6 +335,7 @@ fun VehicleStatusCard(
     useKilometers: Boolean,
     chargeStatus: String,
     chargeVoltage: String?,
+    chargeCompletionTime: String?,
     isPluggedIn: Boolean,
     onSettingsClick: () -> Unit
 ) {
@@ -398,8 +448,14 @@ fun VehicleStatusCard(
                     ) {
                         Icon(Icons.Default.Power, contentDescription = null, tint = chargeColor)
                         Text(chargeStatus, style = MaterialTheme.typography.bodyMedium, color = chargeColor, fontWeight = FontWeight.SemiBold)
-                        if (chargeVoltage != null) {
-                            Text(chargeVoltage, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (chargeStatus == "Charging") {
+                            if (chargeVoltage != null) {
+                                Text(chargeVoltage, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            if (chargeCompletionTime != null) {
+                                Text("·", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(chargeCompletionTime, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {

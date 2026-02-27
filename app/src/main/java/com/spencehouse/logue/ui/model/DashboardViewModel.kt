@@ -44,10 +44,22 @@ class DashboardViewModel @Inject constructor(
                 authService.login()
             }
 
+            val mappedVehicles = authService.vehicles.map {
+                VehicleUiModel(
+                    vin = it.vin,
+                    modelYear = it.modelYear,
+                    divisionName = it.divisionName,
+                    modelCode = it.modelCode,
+                    aliasName = it.aliasName,
+                    asset34FrontPath = it.asset34FrontPath
+                )
+            }
+            Log.d(tag, "Mapped vehicles in init: $mappedVehicles")
+
             val isEv = checkIfEv(authService.getVehicleName())
             uiState = uiState.copy(
                 vehicleName = authService.getVehicleName(),
-                vehicles = authService.vehicles,
+                vehicles = mappedVehicles,
                 selectedVin = authService.selectedVin,
                 isEv = isEv,
                 useCelsius = authService.sessionManager.useCelsius,
@@ -160,6 +172,7 @@ class DashboardViewModel @Inject constructor(
         val odometerData = rb.optJSONObject("odometer")
         val tireStatus = rb.optJSONObject("tireStatus")
         val chargeMode = rb.optJSONObject("getChargeMode")
+        val chargeTime = rb.optJSONObject("hvBatteryChargeCompleteTime")
 
         val battery = evStatus?.optInt("soc")
         val rangeVal = evStatus?.optInt("evRange")
@@ -178,6 +191,7 @@ class DashboardViewModel @Inject constructor(
             range = rangeVal,
             chargeStatus = mainStatus,
             chargeVoltage = voltage,
+            chargeCompletionTime = formatTime(chargeTime),
             isPluggedIn = isPluggedIn,
             targetChargeLevel = targetLevel,
             odometer = odometerData?.optInt("value"),
@@ -185,6 +199,47 @@ class DashboardViewModel @Inject constructor(
             lastUpdated = SimpleDateFormat("hh:mm:ss a", Locale.getDefault()).format(Date()),
             statusText = "Data Received"
         )
+    }
+
+    private fun formatTime(chargeTime: JSONObject?): String? {
+        if (chargeTime == null) return null
+
+        val day = chargeTime.optJSONObject("hvBatteryChargeCompleteDay")?.optString("value")
+        val hourStr = chargeTime.optJSONObject("hvBatteryChargeCompleteHour")?.optString("value")
+        val minuteStr = chargeTime.optJSONObject("hvBatteryChargeCompleteMinute")?.optString("value")
+
+        if (day.isNullOrEmpty() || hourStr.isNullOrEmpty() || minuteStr.isNullOrEmpty()) {
+            return null
+        }
+
+        val hour = hourStr.toIntOrNull()
+        val minute = minuteStr.toIntOrNull()
+
+        if (hour == null || minute == null) return null
+
+        val calendar = Calendar.getInstance()
+        val currentDay = calendar.get(Calendar.DAY_OF_WEEK)
+
+        val dayOfWeekMap = mapOf(
+            "Sunday" to 1, "Monday" to 2, "Tuesday" to 3, "Wednesday" to 4,
+            "Thursday" to 5, "Friday" to 6, "Saturday" to 7
+        )
+
+        val targetDay = dayOfWeekMap[day] ?: return null
+        val daysToAdd = (targetDay - currentDay + 7) % 7
+
+        calendar.add(Calendar.DAY_OF_YEAR, daysToAdd)
+        calendar.set(Calendar.HOUR_OF_DAY, hour)
+        calendar.set(Calendar.MINUTE, minute)
+        calendar.set(Calendar.SECOND, 0)
+
+        // If the calculated time is in the past (and it's the same day), assume it's for the next week
+        if (daysToAdd == 0 && calendar.timeInMillis < System.currentTimeMillis()) {
+            calendar.add(Calendar.DAY_OF_YEAR, 7)
+        }
+
+        val dateFormat = SimpleDateFormat("EEE, h:mm a", Locale.getDefault())
+        return dateFormat.format(calendar.time)
     }
 
     private fun formatChargeStatus(chargeStatus: String?, plugStatus: String?, chargeMode: String?): Pair<String, String?> {
@@ -257,7 +312,21 @@ class DashboardViewModel @Inject constructor(
             climateResult.onSuccess {
                 val status = it.jsonObject["climateStatus"]?.jsonPrimitive?.content ?: "OFF"
                 Log.d(tag, "Climate status received: $status")
-                uiState = uiState.copy(climateStatus = status.uppercase())
+                val mappedVehicles = authService.vehicles.map {
+                    VehicleUiModel(
+                        vin = it.vin,
+                        modelYear = it.modelYear,
+                        divisionName = it.divisionName,
+                        modelCode = it.modelCode,
+                        aliasName = it.aliasName,
+                        asset34FrontPath = it.asset34FrontPath
+                    )
+                }
+                Log.d(tag, "Mapped vehicles in refreshData: $mappedVehicles")
+                uiState = uiState.copy(
+                    climateStatus = status.uppercase(),
+                    vehicles = mappedVehicles
+                )
             }.onFailure {
                 Log.e(tag, "Climate status request failed", it)
                 val errorMsg = it.message ?: ""
@@ -309,6 +378,18 @@ class DashboardViewModel @Inject constructor(
         // This was the missing link - update persistent storage!
         authService.updateSelectedVin(vin)
 
+        val mappedVehicles = authService.vehicles.map {
+            VehicleUiModel(
+                vin = it.vin,
+                modelYear = it.modelYear,
+                divisionName = it.divisionName,
+                modelCode = it.modelCode,
+                aliasName = it.aliasName,
+                asset34FrontPath = it.asset34FrontPath
+            )
+        }
+        Log.d(tag, "Mapped vehicles in onVehicleChange: $mappedVehicles")
+
         val isEv = checkIfEv(authService.getVehicleName())
         uiState = uiState.copy(
             selectedVin = vin,
@@ -316,7 +397,8 @@ class DashboardViewModel @Inject constructor(
             isEv = isEv,
             batteryPercentage = null,
             range = null,
-            statusText = if (isEv) "Switching vehicles..." else "Not an EV"
+            statusText = if (isEv) "Switching vehicles..." else "Not an EV",
+            vehicles = mappedVehicles
         )
 
         if (isEv) {
