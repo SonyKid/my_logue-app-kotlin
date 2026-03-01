@@ -38,7 +38,8 @@ import com.spencehouse.logue.R
 import com.spencehouse.logue.di.ImageLoaderEntryPoint
 import com.spencehouse.logue.ui.model.DashboardViewModel
 import dagger.hilt.android.EntryPointAccessors
-import kotlin.math.min
+import kotlin.math.cos
+import kotlin.math.sin
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -226,7 +227,6 @@ fun DashboardScreen(
                             range = uiState.range ?: 0,
                             odometer = uiState.odometer ?: 0,
                             targetLimit = uiState.targetChargeLevel,
-                            isEv = uiState.isEv,
                             useKilometers = uiState.useKilometers,
                             chargeStatus = uiState.chargeStatus,
                             chargeVoltage = uiState.chargeVoltage,
@@ -331,7 +331,6 @@ fun VehicleStatusCard(
     range: Int,
     odometer: Int,
     targetLimit: Int,
-    isEv: Boolean,
     useKilometers: Boolean,
     chargeStatus: String,
     chargeVoltage: String?,
@@ -351,118 +350,108 @@ fun VehicleStatusCard(
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    progress = { percentage / 100f },
+                    modifier = Modifier.size(150.dp),
+                    strokeWidth = 8.dp,
+                    color = batteryColor,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainer,
+                )
+                Text(
+                    text = "$percentage%",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                val angle = (targetLimit / 100f) * 360f
+                val radians = Math.toRadians(angle.toDouble() - 90)
+                val radius = 71
+                val x = (radius * cos(radians)).toFloat()
+                val y = (radius * sin(radians)).toFloat()
+
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .offset(x.dp, y.dp)
+                        .border(
+                            2.dp,
+                            MaterialTheme.colorScheme.onSurface,
+                            CircleShape
+                        )
+                ) {
+                    Icon(
+                        Icons.Default.Bolt,
+                        contentDescription = "Charge Target",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .padding(2.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "${if (useKilometers) "${(range * 1.609).toInt()} km" else "$range miles"} range",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                Icon(
-                    if (isEv) Icons.Default.ElectricCar else Icons.Default.DirectionsCar,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(32.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                if (isEv) {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Column {
-                            Text("Battery", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = "$percentage% · ${if (useKilometers) "${(range * 1.609).toInt()} km" else "$range miles"} range",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text("Odometer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                if (useKilometers) "${(odometer * 1.609).toInt()} km" else "$odometer miles",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                } else {
-                    Column {
-                        Text("Odometer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Odometer", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        if (useKilometers) "${(odometer * 1.609).toInt()} km" else "$odometer miles",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Target", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            if (useKilometers) "${(odometer * 1.609).toInt()} km" else "$odometer miles",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            "$targetLimit%",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold
                         )
+                        IconButton(onClick = onSettingsClick, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Settings, contentDescription = "Charge Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
 
-            if(isEv) {
-                Spacer(modifier = Modifier.height(16.dp))
-                BoxWithConstraints(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    LinearProgressIndicator(
-                        progress = { percentage / 100f },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(12.dp),
-                        color = batteryColor,
-                        trackColor = MaterialTheme.colorScheme.surfaceContainer,
-                    )
-                    val markerOffset = (maxWidth.value * (targetLimit / 100f))
-                    val coercedMarkerOffset = min(markerOffset, maxWidth.value - 24.dp.value)
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        modifier = Modifier
-                            .size(24.dp)
-                            .offset(x = coercedMarkerOffset.dp)
-                            .border(
-                                2.dp,
-                                MaterialTheme.colorScheme.onSurface,
-                                CircleShape
-                            )
-                    ) {
-                        Icon(
-                            Icons.Default.Bolt,
-                            contentDescription = "Charge Target",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier
-                                .size(20.dp)
-                                .padding(2.dp)
-                        )
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Power, contentDescription = null, tint = chargeColor)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(chargeStatus, style = MaterialTheme.typography.bodyMedium, color = chargeColor, fontWeight = FontWeight.SemiBold)
+                if (chargeStatus == "Charging") {
+                    if (chargeVoltage != null) {
+                        Text(" · $chargeVoltage", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(Icons.Default.Power, contentDescription = null, tint = chargeColor)
-                        Text(chargeStatus, style = MaterialTheme.typography.bodyMedium, color = chargeColor, fontWeight = FontWeight.SemiBold)
-                        if (chargeStatus == "Charging") {
-                            if (chargeVoltage != null) {
-                                Text(chargeVoltage, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            if (chargeCompletionTime != null) {
-                                Text("·", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(chargeCompletionTime, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Target: $targetLimit%", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                        IconButton(onClick = onSettingsClick, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Settings, contentDescription = "Charge Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                    if (chargeCompletionTime != null) {
+                        Text(" · $chargeCompletionTime", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -766,7 +755,7 @@ fun SettingsDialog(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
                 
                 Text("Logue App", style = MaterialTheme.typography.titleMedium)
-                Text("Version 0.4.4", style = MaterialTheme.typography.bodySmall)
+                Text("Version 0.4.5", style = MaterialTheme.typography.bodySmall)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Logue is an open-source alternative client for Honda and Acura connected vehicles.")
                 Spacer(modifier = Modifier.height(8.dp))
