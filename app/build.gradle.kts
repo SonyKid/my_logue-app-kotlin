@@ -15,8 +15,8 @@ android {
         applicationId = "com.spencehouse.logue"
         minSdk = 24
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.4.6"
+        versionCode = 8
+        versionName = "0.4.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -36,6 +36,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     kotlinOptions {
         jvmTarget = "11"

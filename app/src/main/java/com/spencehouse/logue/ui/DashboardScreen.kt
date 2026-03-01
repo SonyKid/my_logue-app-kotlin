@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.spencehouse.logue.BuildConfig
 import com.spencehouse.logue.R
 import com.spencehouse.logue.di.ImageLoaderEntryPoint
 import com.spencehouse.logue.ui.model.DashboardViewModel
@@ -755,7 +756,7 @@ fun SettingsDialog(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
                 
                 Text("Logue App", style = MaterialTheme.typography.titleMedium)
-                Text("Version 0.4.6", style = MaterialTheme.typography.bodySmall)
+                Text("Version ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Logue is an open-source alternative client for Honda and Acura connected vehicles.")
                 Spacer(modifier = Modifier.height(8.dp))
