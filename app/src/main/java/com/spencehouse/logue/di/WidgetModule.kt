@@ -29,4 +29,11 @@ object WidgetModule {
             .setWorkerFactory(workerFactory)
             .build()
     }
+
+    @dagger.hilt.EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface WidgetEntryPoint {
+        fun vehicleService(): com.spencehouse.logue.service.VehicleService
+        fun sessionManager(): com.spencehouse.logue.service.SessionManager
+    }
 }

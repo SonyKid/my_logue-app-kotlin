@@ -1,4 +1,9 @@
 <resources>
     <string name="app_name">logue</string>
+    <string name="battery_widget_name">Battery Status</string>
     <string name="battery_widget_description">Displays the current battery percentage and range of your vehicle.</string>
+    <string name="climate_widget_name">Climate Control</string>
+    <string name="climate_widget_description">Quickly start or stop the climate control and set the target temperature.</string>
+    <string name="commands_widget_name">Remote Commands</string>
+    <string name="commands_widget_description">Quick access to lock, unlock, lights, and horn commands.</string>
 </resources>

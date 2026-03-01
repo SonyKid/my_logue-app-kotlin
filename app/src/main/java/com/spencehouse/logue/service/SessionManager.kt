@@ -61,4 +61,28 @@ class SessionManager @Inject constructor(@ApplicationContext context: Context) {
     fun logout() {
         sharedPreferences.edit { clear() }
     }
+
+    var cachedBatteryPercentage: Int
+        get() = sharedPreferences.getInt("cached_battery_percentage", -1)
+        set(value) = sharedPreferences.edit { putInt("cached_battery_percentage", value) }
+
+    var cachedRange: Int
+        get() = sharedPreferences.getInt("cached_range", -1)
+        set(value) = sharedPreferences.edit { putInt("cached_range", value) }
+
+    var cachedChargeStatus: String?
+        get() = sharedPreferences.getString("cached_charge_status", null)
+        set(value) = sharedPreferences.edit { putString("cached_charge_status", value) }
+
+    var cachedIsPluggedIn: Boolean
+        get() = sharedPreferences.getBoolean("cached_is_plugged_in", false)
+        set(value) = sharedPreferences.edit { putBoolean("cached_is_plugged_in", value) }
+
+    var cachedClimateStatus: String?
+        get() = sharedPreferences.getString("cached_climate_status", null)
+        set(value) = sharedPreferences.edit { putString("cached_climate_status", value) }
+
+    var targetChargeLevel: Int
+        get() = sharedPreferences.getInt("target_charge_level", 80)
+        set(value) = sharedPreferences.edit { putInt("target_charge_level", value) }
 }

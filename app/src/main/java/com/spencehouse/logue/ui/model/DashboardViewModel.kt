@@ -1,5 +1,7 @@
 package com.spencehouse.logue.ui.model
 
+import android.content.Context
+import android.content.Intent
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -10,16 +12,24 @@ import com.spencehouse.logue.service.AuthService
 import com.spencehouse.logue.service.VehicleService
 import com.spencehouse.logue.service.mqtt.AwsMqttClient
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.*
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.json.JSONObject
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val authService: AuthService,
     private val vehicleService: VehicleService
 ) : ViewModel() {
@@ -186,6 +196,12 @@ class DashboardViewModel @Inject constructor(
 
         val (mainStatus, voltage) = formatChargeStatus(chargeStatus, plugStatus, chargeModeValue)
 
+        authService.sessionManager.cachedBatteryPercentage = battery ?: -1
+        authService.sessionManager.cachedRange = rangeVal ?: -1
+        authService.sessionManager.cachedChargeStatus = mainStatus
+        authService.sessionManager.cachedIsPluggedIn = isPluggedIn
+        authService.sessionManager.targetChargeLevel = targetLevel
+
         uiState = uiState.copy(
             batteryPercentage = battery,
             range = rangeVal,
@@ -312,14 +328,15 @@ class DashboardViewModel @Inject constructor(
             climateResult.onSuccess {
                 val status = it.jsonObject["climateStatus"]?.jsonPrimitive?.content ?: "OFF"
                 Log.d(tag, "Climate status received: $status")
-                val mappedVehicles = authService.vehicles.map {
+                authService.sessionManager.cachedClimateStatus = status.uppercase()
+                val mappedVehicles = authService.vehicles.map { vehicle ->
                     VehicleUiModel(
-                        vin = it.vin,
-                        modelYear = it.modelYear,
-                        divisionName = it.divisionName,
-                        modelCode = it.modelCode,
-                        aliasName = it.aliasName,
-                        asset34FrontPath = it.asset34FrontPath
+                        vin = vehicle.vin,
+                        modelYear = vehicle.modelYear,
+                        divisionName = vehicle.divisionName,
+                        modelCode = vehicle.modelCode,
+                        aliasName = vehicle.aliasName,
+                        asset34FrontPath = vehicle.asset34FrontPath
                     )
                 }
                 Log.d(tag, "Mapped vehicles in refreshData: $mappedVehicles")
@@ -477,7 +494,7 @@ class DashboardViewModel @Inject constructor(
                             else -> updateStatus("Horn is turning on.")
                         }
                     }
-                    this.cancel()
+                    cancel()
                     return@launch
                 }
                 delay(5000) // Increased delay
@@ -496,6 +513,16 @@ class DashboardViewModel @Inject constructor(
             result.onSuccess {
                 Log.i(tag, "Command $name sent successfully")
                 updateStatus("$name command sent!")
+                
+                if (name == "Start Climate") {
+                    val intent = Intent(context, com.spencehouse.logue.service.ClimateControlService::class.java)
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        context.startForegroundService(intent)
+                    } else {
+                        context.startService(intent)
+                    }
+                }
+                
                 startAggressivePolling(targetStatus)
             }.onFailure {
                 Log.e(tag, "Command $name failed", it)
@@ -581,7 +608,7 @@ class DashboardViewModel @Inject constructor(
                 if (uiState.climateStatus == targetStatus) {
                     Log.i(tag, "Target status reached after $i polls")
                     updateStatus("Climate is ${targetStatus.lowercase()}.")
-                    this.cancel()
+                    cancel()
                 }
                 delay(5000)
                 refreshData()
