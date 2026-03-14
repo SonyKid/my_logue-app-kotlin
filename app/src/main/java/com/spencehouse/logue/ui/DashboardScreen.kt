@@ -56,6 +56,13 @@ fun DashboardScreen(
     val context = LocalContext.current
     val imageLoader = EntryPointAccessors.fromApplication(context, ImageLoaderEntryPoint::class.java).imageLoader()
 
+    val executeOrShowPin = { actionName: String, onConfirm: (String) -> Unit ->
+        if (uiState.savedPin?.isNotEmpty() == true) {
+            onConfirm(uiState.savedPin)
+        } else {
+            showPinDialog = actionName to onConfirm
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -242,15 +249,15 @@ fun DashboardScreen(
                         RemoteCommands(
                             isFlashing = uiState.isFlashing,
                             isHonking = uiState.isHonking,
-                            onLock = { showPinDialog = "Lock Doors" to { pin -> viewModel.lockDoors(pin) } },
-                            onUnlock = { showPinDialog = "Unlock Doors" to { pin -> viewModel.unlockDoors(pin) } },
+                            onLock = { executeOrShowPin("Lock Doors") { pin -> viewModel.lockDoors(pin) } },
+                            onUnlock = { executeOrShowPin("Unlock Doors") { pin -> viewModel.unlockDoors(pin) } },
                             onLights = {
                                 val action = if (uiState.isFlashing) "Stop Lights" else "Flash Lights"
-                                showPinDialog = action to { pin -> viewModel.toggleFlashLights(pin) }
+                                executeOrShowPin(action) { pin -> viewModel.toggleFlashLights(pin) }
                             },
                             onHorn = {
                                 val action = if (uiState.isHonking) "Stop Horn" else "Sound Horn"
-                                showPinDialog = action to { pin -> viewModel.toggleSoundHorn(pin) }
+                                executeOrShowPin(action) { pin -> viewModel.toggleSoundHorn(pin) }
                             }
                         )
                     }
@@ -261,10 +268,10 @@ fun DashboardScreen(
                             status = uiState.climateStatus,
                             useCelsius = uiState.useCelsius,
                             onStart = { temp ->
-                                showPinDialog = "Start Climate" to { pin -> viewModel.startClimate(pin, temp) }
+                                executeOrShowPin("Start Climate") { pin -> viewModel.startClimate(pin, temp) }
                             },
                             onStop = {
-                                showPinDialog = "Stop Climate" to { pin -> viewModel.stopClimate(pin) }
+                                executeOrShowPin("Stop Climate") { pin -> viewModel.stopClimate(pin) }
                             }
                         )
                     }
@@ -312,9 +319,11 @@ fun DashboardScreen(
             useCelsius = uiState.useCelsius,
             useKilometers = uiState.useKilometers,
             useKpa = uiState.useKpa,
+            isPinSaved = !uiState.savedPin.isNullOrEmpty(),
             onUseCelsiusChange = { viewModel.toggleCelsius(it) },
             onUseKilometersChange = { viewModel.toggleKilometers(it) },
             onUseKpaChange = { viewModel.toggleKpa(it) },
+            onDeletePin = { viewModel.setPin(null) },
             onLogout = {
                 viewModel.logout()
                 onLogout()
@@ -716,9 +725,11 @@ fun SettingsDialog(
     useCelsius: Boolean,
     useKilometers: Boolean,
     useKpa: Boolean,
+    isPinSaved: Boolean,
     onUseCelsiusChange: (Boolean) -> Unit,
     onUseKilometersChange: (Boolean) -> Unit,
     onUseKpaChange: (Boolean) -> Unit,
+    onDeletePin: () -> Unit,
     onLogout: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -751,6 +762,19 @@ fun SettingsDialog(
                 ) {
                     Text("Use kPa for Tire Pressure")
                     Switch(checked = useKpa, onCheckedChange = onUseKpaChange)
+                }
+
+                if (isPinSaved) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                    Button(
+                        onClick = onDeletePin,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Delete Saved PIN")
+                    }
                 }
                 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
