@@ -22,7 +22,5 @@ class UpdateActionCallback : ActionCallback {
         // Optionally force an immediate partial update with cached data
         // For a more complete update, the Worker should call updateAll
         BatteryWidget().updateAll(context)
-        ClimateWidget().updateAll(context)
-        CommandsWidget().updateAll(context)
     }
 }
