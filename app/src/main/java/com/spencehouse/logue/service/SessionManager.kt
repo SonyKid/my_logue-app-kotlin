@@ -85,4 +85,8 @@ class SessionManager @Inject constructor(@ApplicationContext context: Context) {
     var targetChargeLevel: Int
         get() = sharedPreferences.getInt("target_charge_level", 80)
         set(value) = sharedPreferences.edit { putInt("target_charge_level", value) }
+
+    var cachedVoltage: Int
+        get() = sharedPreferences.getInt("cached_voltage", -1)
+        set(value) = sharedPreferences.edit { putInt("cached_voltage", value) }
 }

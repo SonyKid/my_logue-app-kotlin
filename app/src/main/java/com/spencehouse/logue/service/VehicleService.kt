@@ -20,6 +20,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlin.math.roundToInt
 
 data class DashboardData(
     val batteryPercentage: Int,
@@ -38,10 +39,23 @@ private data class MqttDashboardState(
 
 @Serializable
 private data class MqttDashboardReported(
-    @SerialName("EV_RANGE")
-    val range: Int,
-    @SerialName("EV_BATTERY_LEVEL")
-    val batteryLevel: Int
+    val responseBody: ResponseBody
+)
+
+@Serializable
+private data class ResponseBody(
+    val evStatus: EvStatus
+)
+
+@Serializable
+private data class EvStatus(
+    val soc: String,
+    val evRange: String,
+    val chargerVoltage: String? = null,
+    @SerialName("chgStatus")
+    val chargingStatus: String? = null,
+    @SerialName("evPlugin")
+    val isPluggedIn: String? = null
 )
 
 @Serializable
@@ -65,6 +79,8 @@ class VehicleService @Inject constructor(
     private val sessionManager: SessionManager,
     private val json: Json
 ) {
+    private val tolerantJson = Json { ignoreUnknownKeys = true }
+
     private fun getHeaders(siteId: String, version: String = "1.0", messageId: String = UUID.randomUUID().toString().uppercase()): Result<Map<String, String>> {
         val accessToken = sessionManager.accessToken ?: return Result.failure(Exception("No access token"))
         val hidasIdent = sessionManager.hidasIdent ?: return Result.failure(Exception("No HIDAS ident"))
@@ -95,18 +111,45 @@ class VehicleService @Inject constructor(
             mqttClient?.disconnect()
         }
 
-        val onMessageCallback: (String, String) -> Unit = { topic, payload ->
+        val onMessageCallback: (String, String) -> Unit = label@{ topic, payload ->
             if (topic.contains("DASHBOARD_ASYNC/update/accepted")) {
+                if (!continuation.isActive) return@label
                 try {
-                    val response = json.decodeFromString<MqttDashboardResponse>(payload)
-                    val dashboardData = DashboardData(
-                        batteryPercentage = response.state.reported.batteryLevel,
-                        range = response.state.reported.range
-                    )
-                    continuation.resume(Result.success(dashboardData))
+                    Log.d("VehicleService.getDashboardData", "Processing MQTT payload: $payload")
+                    val response = tolerantJson.decodeFromString<MqttDashboardResponse>(payload)
+                    val evStatus = response.state.reported.responseBody.evStatus
+                    
+                    val batteryLevel = evStatus.soc.toIntOrNull()
+                    val range = evStatus.evRange.toDoubleOrNull()?.roundToInt()
+                    val voltage = evStatus.chargerVoltage?.toIntOrNull()
+                    val isPluggedIn = evStatus.isPluggedIn == "1"
+
+                    if (batteryLevel != null) {
+                        sessionManager.cachedBatteryPercentage = batteryLevel
+                    }
+                    if (range != null) {
+                        sessionManager.cachedRange = range
+                    }
+                    if (voltage != null) {
+                        sessionManager.cachedVoltage = voltage
+                    }
+                    if (evStatus.chargingStatus != null) {
+                        sessionManager.cachedChargeStatus = evStatus.chargingStatus
+                    }
+                    sessionManager.cachedIsPluggedIn = isPluggedIn
+
+                    if (batteryLevel != null && range != null) {
+                        val dashboardData = DashboardData(
+                            batteryPercentage = batteryLevel,
+                            range = range
+                        )
+                        if (continuation.isActive) continuation.resume(Result.success(dashboardData))
+                    } else {
+                        Log.w("VehicleService.getDashboardData", "Could not parse battery or range from payload")
+                    }
                 } catch (e: Exception) {
                     Log.e("VehicleService.getDashboardData", "Failed to parse MQTT payload", e)
-                    continuation.resumeWithException(e)
+                    if (continuation.isActive) continuation.resumeWithException(e)
                 }
             }
         }
@@ -114,13 +157,13 @@ class VehicleService @Inject constructor(
         val onConnected: () -> Unit = {
             scope.launch {
                 requestDashboard(vin).onFailure {
-                    continuation.resumeWithException(it)
+                    if (continuation.isActive) continuation.resumeWithException(it)
                 }
             }
         }
 
         val onError: (String) -> Unit = {
-            continuation.resumeWithException(Exception(it))
+            if (continuation.isActive) continuation.resumeWithException(Exception(it))
         }
 
         scope.launch {
@@ -136,7 +179,7 @@ class VehicleService @Inject constructor(
                 mqttClient = client
                 client.connect()
             }.onFailure {
-                continuation.resumeWithException(it)
+                if (continuation.isActive) continuation.resumeWithException(it)
             }
         }
     }

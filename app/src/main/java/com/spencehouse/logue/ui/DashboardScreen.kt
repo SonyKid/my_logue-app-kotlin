@@ -86,6 +86,21 @@ fun DashboardScreen(
                                 AsyncImage(
                                     model = ImageRequest.Builder(LocalContext.current)
                                         .data(selectedVehicle.asset34FrontPath)
+                                        .addHeader("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
+                                        .addHeader("accept-language", "en-US,en;q=0.9")
+                                        .addHeader("cache-control", "no-cache")
+                                        .addHeader("dnt", "1")
+                                        .addHeader("pragma", "no-cache")
+                                        .addHeader("priority", "u=0, i")
+                                        .addHeader("sec-ch-ua", "\"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\"")
+                                        .addHeader("sec-ch-ua-mobile", "?0")
+                                        .addHeader("sec-ch-ua-platform", "\"Linux\"")
+                                        .addHeader("sec-fetch-dest", "document")
+                                        .addHeader("sec-fetch-mode", "navigate")
+                                        .addHeader("sec-fetch-site", "none")
+                                        .addHeader("sec-fetch-user", "?1")
+                                        .addHeader("upgrade-insecure-requests", "1")
+                                        .addHeader("user-agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36")
                                         .error(R.drawable.ic_launcher_foreground)
                                         .listener(onError = { _, result ->
                                             Log.e("DashboardScreen", "Coil error: ${result.throwable}")
@@ -123,14 +138,34 @@ fun DashboardScreen(
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             if (vehicle.asset34FrontPath != null) {
                                                 AsyncImage(
-                                                    model = vehicle.asset34FrontPath,
+                                                    model = ImageRequest.Builder(LocalContext.current)
+                                                        .data(vehicle.asset34FrontPath)
+                                                        .addHeader("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
+                                                        .addHeader("accept-language", "en-US,en;q=0.9")
+                                                        .addHeader("cache-control", "no-cache")
+                                                        .addHeader("dnt", "1")
+                                                        .addHeader("pragma", "no-cache")
+                                                        .addHeader("priority", "u=0, i")
+                                                        .addHeader("sec-ch-ua", "\"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\"")
+                                                        .addHeader("sec-ch-ua-mobile", "?0")
+                                                        .addHeader("sec-ch-ua-platform", "\"Linux\"")
+                                                        .addHeader("sec-fetch-dest", "document")
+                                                        .addHeader("sec-fetch-mode", "navigate")
+                                                        .addHeader("sec-fetch-site", "none")
+                                                        .addHeader("sec-fetch-user", "?1")
+                                                        .addHeader("upgrade-insecure-requests", "1")
+                                                        .addHeader("user-agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36")
+                                                        .build(),
                                                     contentDescription = "Vehicle Image",
                                                     imageLoader = imageLoader,
                                                     modifier = Modifier
                                                         .size(40.dp)
                                                         .clip(CircleShape),
                                                     contentScale = ContentScale.Crop,
-                                                    placeholder = painterResource(id = R.drawable.ic_launcher_foreground)
+                                                    placeholder = painterResource(id = R.drawable.ic_launcher_foreground),
+                                                    onError = { error ->
+                                                        Log.e("DashboardScreen", "Coil error: ${error.result.throwable}")
+                                                    }
                                                 )
                                                 Spacer(modifier = Modifier.width(12.dp))
                                             }
@@ -144,7 +179,7 @@ fun DashboardScreen(
                                         viewModel.onVehicleChange(vehicle.vin)
                                         expanded = false
                                     }
-                                )
+                                 )
                             }
                         }
                     }
