@@ -461,11 +461,11 @@ fun VehicleStatusCard(
                 Icon(Icons.Default.Power, contentDescription = null, tint = chargeColor)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(chargeStatus, style = MaterialTheme.typography.bodyMedium, color = chargeColor, fontWeight = FontWeight.SemiBold)
-                if (chargeStatus == "Charging") {
+                if (isPluggedIn) {
                     if (chargeVoltage != null) {
                         Text(" · $chargeVoltage", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    if (chargeCompletionTime != null) {
+                    if (chargeStatus == "Charging" && chargeCompletionTime != null) {
                         Text(" · $chargeCompletionTime", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }

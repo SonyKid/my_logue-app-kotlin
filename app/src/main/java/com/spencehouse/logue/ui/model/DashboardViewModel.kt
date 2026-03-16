@@ -192,7 +192,7 @@ class DashboardViewModel @Inject constructor(
 
         val targetLevel = chargeMode?.optJSONObject("generalAwayTargetChargeLevel")?.optInt("value") ?: 80
 
-        val isPluggedIn = plugStatus?.lowercase() == "plugged" || chargeStatus?.lowercase() == "charging" || chargeStatus?.lowercase() == "complete"
+        val isPluggedIn = plugStatus?.lowercase() == "plugged" || chargeStatus?.lowercase() == "charging"
 
         val (mainStatus, voltage) = formatChargeStatus(chargeStatus, plugStatus, chargeModeValue)
 
@@ -262,7 +262,9 @@ class DashboardViewModel @Inject constructor(
         val status = chargeStatus?.lowercase()
         val pStatus = plugStatus?.lowercase()
 
-        if (pStatus != "plugged") {
+        val isPluggedIn = pStatus == "plugged" || status == "charging"
+
+        if (!isPluggedIn) {
             return "Unplugged" to null
         }
 
@@ -272,9 +274,9 @@ class DashboardViewModel @Inject constructor(
             "complete" -> mainStatus = "Complete"
         }
 
-        val isNumeric = chargeMode?.toIntOrNull() != null
-        val voltage = if (chargeMode != null && isNumeric) {
-            "${chargeMode}V"
+        val chargeModeInt = chargeMode?.toIntOrNull()
+        val voltage = if (chargeModeInt != null && chargeModeInt > 0) {
+            "${chargeModeInt}V"
         } else {
             null
         }
