@@ -67,3 +67,4 @@ build/
 .idea/shelf/
 .idea/modules.xml
 .idea/navEditor.xml
+.agent
