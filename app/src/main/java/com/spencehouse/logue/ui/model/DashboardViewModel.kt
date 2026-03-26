@@ -125,17 +125,23 @@ class DashboardViewModel @Inject constructor(
                     cigToken = creds.token,
                     cigSignature = creds.tokenSignature,
                     onMessageCallback = { topic, payload ->
-                        Log.d(tag, "MQTT Message received on $topic")
-                        onMqttMessage(topic, payload)
+                        viewModelScope.launch {
+                            Log.d(tag, "MQTT Message received on $topic")
+                            onMqttMessage(topic, payload)
+                        }
                     },
                     onConnected = {
-                        Log.i(tag, "MQTT Connected successfully")
-                        updateStatus("Connected")
-                        refreshData()
+                        viewModelScope.launch {
+                            Log.i(tag, "MQTT Connected successfully")
+                            updateStatus("Connected")
+                            refreshData()
+                        }
                     },
                     onError = { error ->
-                        Log.e(tag, "MQTT Client Error: $error")
-                        updateStatus("Connection Error: $error")
+                        viewModelScope.launch {
+                            Log.e(tag, "MQTT Client Error: $error")
+                            updateStatus("Connection Error: $error")
+                        }
                     }
                 )
                 mqttClient?.connect()
