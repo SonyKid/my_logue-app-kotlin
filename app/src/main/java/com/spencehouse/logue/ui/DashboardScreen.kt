@@ -40,6 +40,7 @@ import com.spencehouse.logue.di.ImageLoaderEntryPoint
 import com.spencehouse.logue.ui.model.DashboardViewModel
 import dagger.hilt.android.EntryPointAccessors
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -707,7 +708,7 @@ fun ChargeLimitDialog(currentLimit: Int, onDismiss: () -> Unit, onConfirm: (Int)
         title = { Text("Set Charge Limit", style = MaterialTheme.typography.headlineSmall) },
         text = {
             Column {
-                Text("${limit.toInt()}%", style = MaterialTheme.typography.titleLarge, modifier = Modifier.align(Alignment.CenterHorizontally))
+                Text("${limit.roundToInt()}%", style = MaterialTheme.typography.titleLarge, modifier = Modifier.align(Alignment.CenterHorizontally))
                 Slider(
                     value = limit,
                     onValueChange = { limit = it },
@@ -717,7 +718,7 @@ fun ChargeLimitDialog(currentLimit: Int, onDismiss: () -> Unit, onConfirm: (Int)
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(limit.toInt()) }) { Text("Update") }
+            TextButton(onClick = { onConfirm(limit.roundToInt()) }) { Text("Update") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
