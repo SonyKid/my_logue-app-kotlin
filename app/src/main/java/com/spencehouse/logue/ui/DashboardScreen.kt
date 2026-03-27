@@ -713,7 +713,7 @@ fun ChargeLimitDialog(currentLimit: Int, onDismiss: () -> Unit, onConfirm: (Int)
                     value = limit,
                     onValueChange = { limit = it },
                     valueRange = 50f..100f,
-                    steps = 4
+                    steps = 9
                 )
             }
         },
