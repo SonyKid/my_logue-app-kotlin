@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
@@ -22,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -40,7 +43,6 @@ import com.spencehouse.logue.di.ImageLoaderEntryPoint
 import com.spencehouse.logue.ui.model.DashboardViewModel
 import dagger.hilt.android.EntryPointAccessors
 import kotlin.math.cos
-import kotlin.math.roundToInt
 import kotlin.math.sin
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -51,7 +53,6 @@ fun DashboardScreen(
 ) {
     val uiState = viewModel.uiState
     var showPinDialog by remember { mutableStateOf<Pair<String, (String) -> Unit>?>(null) }
-    var showChargeDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -246,7 +247,7 @@ fun DashboardScreen(
                             chargeVoltage = uiState.chargeVoltage,
                             chargeCompletionTime = uiState.chargeCompletionTime,
                             isPluggedIn = uiState.isPluggedIn,
-                            onSettingsClick = { showChargeDialog = true }
+                            onTargetLimitChange = { viewModel.setTargetChargeLevel(it) }
                         )
                     }
 
@@ -309,16 +310,6 @@ fun DashboardScreen(
         )
     }
 
-    if (showChargeDialog) {
-        ChargeLimitDialog(
-            currentLimit = uiState.targetChargeLevel,
-            onDismiss = { showChargeDialog = false },
-            onConfirm = { limit ->
-                viewModel.setTargetChargeLevel(limit)
-                showChargeDialog = false
-            }
-        )
-    }
 
     if (showSettingsDialog) {
         SettingsDialog(
@@ -352,7 +343,7 @@ fun VehicleStatusCard(
     chargeVoltage: String?,
     chargeCompletionTime: String?,
     isPluggedIn: Boolean,
-    onSettingsClick: () -> Unit
+    onTargetLimitChange: (Int) -> Unit
 ) {
     val batteryColor = when {
         percentage > 70 -> MaterialTheme.colorScheme.primary
@@ -360,6 +351,8 @@ fun VehicleStatusCard(
         else -> MaterialTheme.colorScheme.error
     }
     val chargeColor = if (isPluggedIn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+
+    var localTargetLimit by remember(targetLimit) { mutableIntStateOf(targetLimit) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -370,7 +363,58 @@ fun VehicleStatusCard(
             modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(contentAlignment = Alignment.Center) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(190.dp)
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { offset ->
+                                val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+                                val dx = offset.x - center.x
+                                val dy = offset.y - center.y
+                                var angle = Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat()
+                                angle += 90f
+                                if (angle < 0) angle += 360f
+                                
+                                var newTarget = kotlin.math.round((angle / 360f) * 100f).toInt()
+                                newTarget = kotlin.math.round(newTarget / 5f).toInt() * 5
+                                
+                                if (newTarget < 50) {
+                                    newTarget = if (localTargetLimit >= 75) 100 else 50
+                                }
+                                if (newTarget > 100) newTarget = 100
+                                
+                                localTargetLimit = newTarget
+                                onTargetLimitChange(newTarget)
+                            }
+                        )
+                    }
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragEnd = { onTargetLimitChange(localTargetLimit) },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+                                val dx = change.position.x - center.x
+                                val dy = change.position.y - center.y
+                                var angle = Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat()
+                                angle += 90f
+                                if (angle < 0) angle += 360f
+                                
+                                var newTarget = kotlin.math.round((angle / 360f) * 100f).toInt()
+                                newTarget = kotlin.math.round(newTarget / 5f).toInt() * 5
+                                
+                                if (newTarget < 50) {
+                                    newTarget = if (localTargetLimit >= 75) 100 else 50
+                                }
+                                if (newTarget > 100) newTarget = 100
+                                
+                                localTargetLimit = newTarget
+                            }
+                        )
+                    }
+            ) {
                 CircularProgressIndicator(
                     progress = { percentage / 100f },
                     modifier = Modifier.size(150.dp),
@@ -384,33 +428,21 @@ fun VehicleStatusCard(
                     fontWeight = FontWeight.Bold
                 )
 
-                val angle = (targetLimit / 100f) * 360f
+                val angle = (localTargetLimit / 100f) * 360f
                 val radians = Math.toRadians(angle.toDouble() - 90)
                 val radius = 71
                 val x = (radius * cos(radians)).toFloat()
                 val y = (radius * sin(radians)).toFloat()
 
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                // Draggable knob to set charge target
+                Box(
                     modifier = Modifier
-                        .size(24.dp)
+                        .size(12.dp)
                         .offset(x.dp, y.dp)
-                        .border(
-                            2.dp,
-                            MaterialTheme.colorScheme.onSurface,
-                            CircleShape
-                        )
-                ) {
-                    Icon(
-                        Icons.Default.Bolt,
-                        contentDescription = "Charge Target",
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .padding(2.dp)
-                    )
-                }
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary)
+                        .border(1.dp, MaterialTheme.colorScheme.onPrimary, CircleShape)
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -435,18 +467,40 @@ fun VehicleStatusCard(
                         fontWeight = FontWeight.SemiBold
                     )
                 }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                var showChargeLimitDialog by remember { mutableStateOf(false) }
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { showChargeLimitDialog = true }
+                ) {
                     Text("Target", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "$targetLimit%",
+                            "$localTargetLimit%",
                             style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                        IconButton(onClick = onSettingsClick, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Settings, contentDescription = "Charge Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "Set charge target",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .size(16.dp)
+                                .padding(start = 2.dp)
+                        )
                     }
+                }
+
+                if (showChargeLimitDialog) {
+                    ChargeLimitDialog(
+                        currentLimit = localTargetLimit,
+                        onDismiss = { showChargeLimitDialog = false },
+                        onConfirm = { newLimit ->
+                            localTargetLimit = newLimit
+                            onTargetLimitChange(newLimit)
+                            showChargeLimitDialog = false
+                        }
+                    )
                 }
             }
 
@@ -473,6 +527,52 @@ fun VehicleStatusCard(
             }
         }
     }
+}
+
+@Composable
+fun ChargeLimitDialog(
+    currentLimit: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit
+) {
+    var sliderValue by remember { mutableFloatStateOf(currentLimit.toFloat()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Set Charge Target") },
+        text = {
+            Column {
+                Text(
+                    text = "${sliderValue.toInt()}%",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Slider(
+                    value = sliderValue,
+                    onValueChange = { sliderValue = it },
+                    valueRange = 50f..100f,
+                    steps = 9,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("50%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("100%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(sliderValue.toInt()) }) { Text("Set") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable
@@ -700,31 +800,7 @@ fun PinDialog(
     }
 }
 
-@Composable
-fun ChargeLimitDialog(currentLimit: Int, onDismiss: () -> Unit, onConfirm: (Int) -> Unit) {
-    var limit by remember { mutableFloatStateOf(currentLimit.toFloat()) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Set Charge Limit", style = MaterialTheme.typography.headlineSmall) },
-        text = {
-            Column {
-                Text("${limit.roundToInt()}%", style = MaterialTheme.typography.titleLarge, modifier = Modifier.align(Alignment.CenterHorizontally))
-                Slider(
-                    value = limit,
-                    onValueChange = { limit = it },
-                    valueRange = 50f..100f,
-                    steps = 9
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(limit.roundToInt()) }) { Text("Update") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
-}
+
 
 @Composable
 fun SettingsDialog(
